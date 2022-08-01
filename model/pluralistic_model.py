@@ -161,25 +161,18 @@ class Pluralistic(BaseModel):
         D_fake = netD(fake.detach())
         D_fake_loss = self.GANloss(D_fake, False, True)
         # loss for discriminator
-<<<<<<< HEAD
         if self.opt.gan_mode == 'wgandiv':
             D_loss = D_real_loss - D_fake_loss
         else:
             D_loss = (D_real_loss + D_fake_loss) * 0.5
-=======
-        D_loss = (D_real_loss + D_fake_loss) * 0.5
->>>>>>> refs/remotes/master/master
         # gradient penalty for wgan-gp
         if self.opt.gan_mode == 'wgangp':
             gradient_penalty, gradients = external_function.cal_gradient_penalty(netD, real, fake.detach())
             D_loss += gradient_penalty
-<<<<<<< HEAD
         # gradient penalty for wgan-div
         if self.opt.gan_mode == 'wgandiv':
             gradient_penalty_div = external_function.cal_gradient_penalty_div(netD, real, fake.detach())
             D_loss += gradient_penalty_div
-=======
->>>>>>> refs/remotes/master/master
 
         D_loss.backward()
 
