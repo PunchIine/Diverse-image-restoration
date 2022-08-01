@@ -209,7 +209,11 @@ class ui_model(QtWidgets.QWidget, Ui_Form):
         else:
             mask = task.center_mask(img).unsqueeze(0)
         if len(self.opt.gpu_ids) > 0:
+<<<<<<< HEAD
             img = img.unsqueeze(0).cuda(self.opt.gpu_ids[0],)
+=======
+            img = img.unsqueeze(0).cuda(self.opt.gpu_ids[0])
+>>>>>>> refs/remotes/master/master
             mask = mask.cuda(self.opt.gpu_ids[0])
 
         # get I_m and I_c for image with mask and complement regions for training

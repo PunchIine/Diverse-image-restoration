@@ -104,8 +104,11 @@ class GANLoss(nn.Module):
             self.loss = nn.ReLU()
         elif gan_mode == 'wgangp':
             self.loss = None
+<<<<<<< HEAD
         elif gan_mode == 'wgandiv':
             self.loss = None
+=======
+>>>>>>> refs/remotes/master/master
         else:
             raise NotImplementedError('gan mode %s not implemented' % gan_mode)
 
@@ -130,9 +133,12 @@ class GANLoss(nn.Module):
                     loss = prediction.mean()
             else:
                 loss = -prediction.mean()
+<<<<<<< HEAD
         elif self.gan_mode in ['wgandiv']:
             loss = prediction.mean()
 
+=======
+>>>>>>> refs/remotes/master/master
         return loss
 
 
@@ -171,6 +177,7 @@ def cal_gradient_penalty(netD, real_data, fake_data, type='mixed', constant=1.0,
         return 0.0, None
 
 
+<<<<<<< HEAD
 def cal_gradient_penalty_div(netD, real_data, fake_data, type='mixed', const_power=6.0, const_kappa=2.0):
 
     if type == 'real':  # either use real images, fake images, or a linear interpolation of two.
@@ -195,6 +202,8 @@ def cal_gradient_penalty_div(netD, real_data, fake_data, type='mixed', const_pow
     return gradients_penalty_div
 
 
+=======
+>>>>>>> refs/remotes/master/master
 ####################################################################################################
 # neural style transform loss from neural_style_tutorial of pytorch
 ####################################################################################################
