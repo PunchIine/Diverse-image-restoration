@@ -1,8 +1,9 @@
 import torch
 from .base_model import BaseModel
 from . import network, base_function, external_function
-from util import task
+from util import task, MS_L1loss
 import itertools
+
 
 
 class Pluralistic(BaseModel):
@@ -46,6 +47,7 @@ class Pluralistic(BaseModel):
             self.GANloss = external_function.GANLoss(opt.gan_mode)
             self.L1loss = torch.nn.L1Loss()
             self.L2loss = torch.nn.MSELoss()
+            self.Ms_L1loss = MS_L1loss.MS_SSIM_L1_LOSS()
             # define the optimizer
             self.optimizer_G = torch.optim.Adam(itertools.chain(filter(lambda p: p.requires_grad, self.net_G.parameters()),
                         filter(lambda p: p.requires_grad, self.net_E.parameters())), lr=opt.lr, betas=(0.0, 0.999))
@@ -205,13 +207,15 @@ class Pluralistic(BaseModel):
         # calculate l1 loss ofr multi-scale outputs
         loss_app_rec, loss_app_g = 0, 0
         for i, (img_rec_i, img_fake_i, img_real_i, mask_i) in enumerate(zip(self.img_rec, self.img_g, self.scale_img, self.scale_mask)):
-            loss_app_rec += self.L1loss(img_rec_i, img_real_i)
+            loss_app_rec += self.Ms_L1loss(img_rec_i, img_real_i)
             if self.opt.train_paths == "one":
-                loss_app_g += self.L1loss(img_fake_i, img_real_i)
+                loss_app_g += self.Ms_L1loss(img_fake_i, img_real_i)
             elif self.opt.train_paths == "two":
-                loss_app_g += self.L1loss(img_fake_i*mask_i, img_real_i*mask_i)
-        self.loss_app_rec = loss_app_rec * self.opt.lambda_rec
-        self.loss_app_g = loss_app_g * self.opt.lambda_rec
+                loss_app_g += self.Ms_L1loss(img_fake_i*mask_i, img_real_i*mask_i)
+        # self.loss_app_rec = loss_app_rec * self.opt.lambda_rec
+        # self.loss_app_g = loss_app_g * self.opt.lambda_rec
+        self.loss_app_rec = loss_app_rec * 0.2
+        self.loss_app_g = loss_app_g * 0.2
 
         # if one path during the training, just calculate the loss for generation path
         if self.opt.train_paths == "one":

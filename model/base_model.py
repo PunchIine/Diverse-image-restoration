@@ -1,9 +1,4 @@
-<<<<<<< HEAD
 import os, ntpath
-=======
-import os
-import ntpath
->>>>>>> refs/remotes/master/master
 import torch
 from collections import OrderedDict
 from util import util

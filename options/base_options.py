@@ -22,11 +22,7 @@ class BaseOptions():
         parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0, 1, 2 use -1 for CPU')
 
         # data pattern define
-<<<<<<< HEAD
         parser.add_argument('--img_file', type=str, default='/home/lazy/data/dataset/train/CelebA-HQ-img', help='training and testing dataset')
-=======
-        parser.add_argument('--img_file', type=str, default='/data/dataset/train', help='training and testing dataset')
->>>>>>> refs/remotes/master/master
         parser.add_argument('--mask_file', type=str, default='none', help='load test mask')
         parser.add_argument('--loadSize', type=int, default=[266, 266], help='scale images to this size')
         parser.add_argument('--fineSize', type=int, default=[256, 256], help='then crop to this size')
@@ -34,11 +30,7 @@ class BaseOptions():
         parser.add_argument('--no_flip', action='store_true', help='if specified, do not flip the image for data augmentation')
         parser.add_argument('--no_rotation', action='store_true', help='if specified, do not rotation for data augmentation')
         parser.add_argument('--no_augment', action='store_true', help='if specified, do not augment the image for data augmentation')
-<<<<<<< HEAD
         parser.add_argument('--batchSize', type=int, default=4, help='input batch size')
-=======
-        parser.add_argument('--batchSize', type=int, default=8, help='input batch size')
->>>>>>> refs/remotes/master/master
         parser.add_argument('--nThreads', type=int, default=8, help='# threads for loading data')
         parser.add_argument('--no_shuffle', action='store_true',help='if true, takes images serial')
 
