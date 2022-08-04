@@ -2,30 +2,19 @@ import numpy as np
 import argparse
 from PIL import Image
 import math
-<<<<<<< HEAD
 import sys
 sys.path.append('/home/lazy/Pluralistic-Inpainting')
-=======
->>>>>>> refs/remotes/master/master
 from dataloader.image_folder import make_dataset
 import os
 import glob
 import shutil
 
 parser = argparse.ArgumentParser(description='Evaluation ont the dataset')
-<<<<<<< HEAD
 parser.add_argument('--gt_path', type = str, default='/home/lazy/Pluralistic-Inpainting/images/truth',
                     help = 'path to original particular solutions')
 parser.add_argument('--save_path', type = str, default='/home/lazy/Pluralistic-Inpainting/images/out',
                     help='path to save the test dataset')
 parser.add_argument('--num_test', type=int, default=500,
-=======
-parser.add_argument('--gt_path', type = str, default='/media/lyndon/c6f4bbbd-8d47-4dcb-b0db-d788fe2b2557/dataset/image_painting/imagenet_test.txt',
-                    help = 'path to original particular solutions')
-parser.add_argument('--save_path', type = str, default='/media/lyndon/c6f4bbbd-8d47-4dcb-b0db-d788fe2b2557/dataset/image_painting/results/ours/imagenet/center',
-                    help='path to save the test dataset')
-parser.add_argument('--num_test', type=int, default=1000,
->>>>>>> refs/remotes/master/master
                     help='how many images to load for each test')
 # parser.add_argument('--sample_numbers',type=int,default=50, help='how many smaple images for testing')
 args = parser.parse_args()
@@ -55,7 +44,6 @@ def compute_errors(gt, pre):
 if __name__ == "__main__":
 
     gt_paths, gt_size = make_dataset(args.gt_path)
-<<<<<<< HEAD
     pre_paths, pre_size = make_dataset(args.save_path)
 
     for i in range(2000):
@@ -70,22 +58,6 @@ if __name__ == "__main__":
     assert gt_size == pre_size
     #
     iters = int(2000/args.num_test)
-=======
-    #pre_paths, pre_size = make_dataset(args.save_path)
-
-    # for i in range(20000):
-    #     print(i)
-    #     name = gt_paths[i].split("/")[-1]
-    #     path = os.path.join(args.save_path,name)
-    #     try:
-    #         image = Image.open(path)
-    #     except:
-    #         print (path)
-
-    # assert gt_size == pre_size
-    #
-    iters = int(20000/args.num_test)
->>>>>>> refs/remotes/master/master
 
     l1_loss = np.zeros(iters, np.float32)
     PSNR = np.zeros(iters, np.float32)
@@ -106,11 +78,7 @@ if __name__ == "__main__":
             PSNR_sample = 0
             TV_sample = 1000
             name = gt_paths[index].split('/')[-1].split(".")[0]+"*"
-<<<<<<< HEAD
 #            pre_paths = sorted(glob.glob(os.path.join(args.save_path, name)))
-=======
-            pre_paths = sorted(glob.glob(os.path.join(args.save_path, name)))
->>>>>>> refs/remotes/master/master
             num_image_files = len(pre_paths)
 
             for k in range(num_image_files-1):
@@ -125,11 +93,7 @@ if __name__ == "__main__":
                         best_index = index2
                 except:
                     print(pre_paths[index2])
-<<<<<<< HEAD
             shutil.copy(pre_paths[best_index], '/home/lazy/Pluralistic-Inpainting/images/copy')
-=======
-            shutil.copy(pre_paths[best_index], '/media/lyndon/c6f4bbbd-8d47-4dcb-b0db-d788fe2b2557/dataset/image_painting/results/ours/imagenet/center_copy/')
->>>>>>> refs/remotes/master/master
             print(pre_paths[best_index])
             print(l1_sample, PSNR_sample, TV_sample)
 

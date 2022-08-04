@@ -22,7 +22,7 @@ class BaseOptions():
         parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0, 1, 2 use -1 for CPU')
 
         # data pattern define
-        parser.add_argument('--img_file', type=str, default='/home/lazy/data/dataset/train/CelebA-HQ-img', help='training and testing dataset')
+        parser.add_argument('--img_file', type=str, default='/home/lazy/img_align_celeba', help='training and testing dataset')
         parser.add_argument('--mask_file', type=str, default='none', help='load test mask')
         parser.add_argument('--loadSize', type=int, default=[266, 266], help='scale images to this size')
         parser.add_argument('--fineSize', type=int, default=[256, 256], help='then crop to this size')
