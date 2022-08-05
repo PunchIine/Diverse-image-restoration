@@ -212,10 +212,8 @@ class Pluralistic(BaseModel):
                 loss_app_g += self.Ms_L1loss(img_fake_i, img_real_i)
             elif self.opt.train_paths == "two":
                 loss_app_g += self.Ms_L1loss(img_fake_i*mask_i, img_real_i*mask_i)
-        # self.loss_app_rec = loss_app_rec * self.opt.lambda_rec
-        # self.loss_app_g = loss_app_g * self.opt.lambda_rec
-        self.loss_app_rec = loss_app_rec * 0.2
-        self.loss_app_g = loss_app_g * 0.2
+        self.loss_app_rec = loss_app_rec * self.opt.lambda_rec
+        self.loss_app_g = loss_app_g * self.opt.lambda_rec
 
         # if one path during the training, just calculate the loss for generation path
         if self.opt.train_paths == "one":
