@@ -187,6 +187,8 @@ class ResGenerator(nn.Module):
                 setattr(self, 'out' + str(i), outconv)
             # short+long term attention part
             if i == 1 and use_attn:
+                simam = SimAM()
+                setattr(self, 'simam' + str(i), simam)
                 attn = Auto_Attn(ngf*mult, None)
                 setattr(self, 'attn' + str(i), attn)
 
@@ -213,6 +215,8 @@ class ResGenerator(nn.Module):
             out = model(out)
             if i == 1 and self.use_attn:
                 # auto attention
+                model = getattr(self, 'simam' + str(i))
+                out = model(out)
                 model = getattr(self, 'attn' + str(i))
                 out, attn = model(out, f_e, mask)
             if i > self.layers - self.output_scale - 1:
@@ -254,6 +258,8 @@ class ResDiscriminator(nn.Module):
             mult = min(2 ** (i + 1), img_f // ndf)
             # self-attention
             if i == 2 and use_attn:
+                simam = SimAM()
+                setattr(self, 'simam' + str(i), simam)
                 attn = Auto_Attn(ndf * mult_prev, norm_layer)
                 setattr(self, 'attn' + str(i), attn)
             block = ResBlock(ndf * mult_prev, ndf * mult, ndf * mult_prev, norm_layer, nonlinearity, 'down', use_spect, use_coord)
@@ -266,6 +272,8 @@ class ResDiscriminator(nn.Module):
         out = self.block0(x)
         for i in range(self.layers - 1):
             if i == 2 and self.use_attn:
+                simam = getattr(self, 'simam' + str(i))
+                out = simam(out)
                 attn = getattr(self, 'attn' + str(i))
                 out, attention = attn(out)
             model = getattr(self, 'encoder' + str(i))
