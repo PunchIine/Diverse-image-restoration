@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
-from .external_function import SpectralNorm
+from .external_function import SpectralNorm, GroupNorm
 
 ######################################################################################
 # base function for network structure
@@ -41,6 +41,8 @@ def get_norm_layer(norm_type='batch'):
         norm_layer = functools.partial(nn.BatchNorm2d, momentum=0.1, affine=True)
     elif norm_type == 'instance':
         norm_layer = functools.partial(nn.InstanceNorm2d, affine=True)
+    elif norm_type == 'group':
+        norm_layer = functools.partial(GroupNorm)
     elif norm_type == 'none':
         norm_layer = None
     else:
@@ -310,7 +312,7 @@ class Output(nn.Module):
 class Auto_Attn(nn.Module):
     """ Short+Long attention Layer"""
 
-    def __init__(self, input_nc, norm_layer=nn.BatchNorm2d):
+    def __init__(self, input_nc, norm_layer=GroupNorm):
         super(Auto_Attn, self).__init__()
         self.input_nc = input_nc
 
