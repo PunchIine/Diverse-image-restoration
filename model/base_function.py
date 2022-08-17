@@ -3,7 +3,9 @@ import torch.nn as nn
 from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
+import torch.nn.functional as F
 from .external_function import SpectralNorm, GroupNorm
+
 
 ######################################################################################
 # base function for network structure
@@ -12,9 +14,10 @@ from .external_function import SpectralNorm, GroupNorm
 
 def init_weights(net, init_type='normal', gain=0.02):
     """Get different initial method for the network weights"""
+
     def init_func(m):
         classname = m.__class__.__name__
-        if hasattr(m, 'weight') and (classname.find('Conv')!=-1 or classname.find('Linear')!=-1):
+        if hasattr(m, 'weight') and (classname.find('Conv') != -1 or classname.find('Linear') != -1):
             if init_type == 'normal':
                 init.normal_(m.weight.data, 0.0, gain)
             elif init_type == 'xavier':
@@ -69,8 +72,9 @@ def get_scheduler(optimizer, opt):
     """Get the training learning rate for different epoch"""
     if opt.lr_policy == 'lambda':
         def lambda_rule(epoch):
-            lr_l = 1.0 - max(0, epoch+1+1+opt.iter_count-opt.niter) / float(opt.niter_decay+1)
+            lr_l = 1.0 - max(0, epoch + 1 + 1 + opt.iter_count - opt.niter) / float(opt.niter_decay + 1)
             return lr_l
+
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
     elif opt.lr_policy == 'step':
         scheduler = lr_scheduler.StepLR(optimizer, step_size=opt.lr_decay_iters, gamma=0.1)
@@ -87,7 +91,7 @@ def print_network(net):
     for param in net.parameters():
         num_params += param.numel()
     print(net)
-    print('total number of parameters: %.3f M' % (num_params/1e6))
+    print('total number of parameters: %.3f M' % (num_params / 1e6))
 
 
 def init_net(net, init_type='normal', activation='relu', gpu_ids=[]):
@@ -95,7 +99,7 @@ def init_net(net, init_type='normal', activation='relu', gpu_ids=[]):
     print_network(net)
 
     if len(gpu_ids) > 0:
-        assert(torch.cuda.is_available())
+        assert (torch.cuda.is_available())
         net.cuda()
         net = torch.nn.DataParallel(net, gpu_ids)
     init_weights(net, init_type)
@@ -141,6 +145,7 @@ class AddCoords(nn.Module):
     """
     Add Coords to a tensor
     """
+
     def __init__(self, with_r=False):
         super(AddCoords, self).__init__()
         self.with_r = with_r
@@ -156,8 +161,8 @@ class AddCoords(nn.Module):
         xx_channel = torch.arange(x_dim).repeat(B, 1, y_dim, 1).type_as(x)
         yy_cahnnel = torch.arange(y_dim).repeat(B, 1, x_dim, 1).permute(0, 1, 3, 2).type_as(x)
         # normalization
-        xx_channel = xx_channel.float() / (x_dim-1)
-        yy_cahnnel = yy_cahnnel.float() / (y_dim-1)
+        xx_channel = xx_channel.float() / (x_dim - 1)
+        yy_cahnnel = yy_cahnnel.float() / (y_dim - 1)
         xx_channel = xx_channel * 2 - 1
         yy_cahnnel = yy_cahnnel * 2 - 1
 
@@ -174,6 +179,7 @@ class CoordConv(nn.Module):
     """
     CoordConv operation
     """
+
     def __init__(self, input_nc, output_nc, with_r=False, use_spect=False, **kwargs):
         super(CoordConv, self).__init__()
         self.addcoords = AddCoords(with_r=with_r)
@@ -193,7 +199,8 @@ class ResBlock(nn.Module):
     """
     Define an Residual block for different types
     """
-    def __init__(self, input_nc, output_nc, hidden_nc=None, norm_layer=nn.BatchNorm2d, nonlinearity= nn.LeakyReLU(),
+
+    def __init__(self, input_nc, output_nc, hidden_nc=None, norm_layer=nn.BatchNorm2d, nonlinearity=nn.LeakyReLU(),
                  sample_type='none', use_spect=False, use_coord=False):
         super(ResBlock, self).__init__()
 
@@ -217,11 +224,12 @@ class ResBlock(nn.Module):
         self.bypass = coord_conv(input_nc, output_nc, use_spect, use_coord, **kwargs_short)
 
         if type(norm_layer) == type(None):
-            self.model = nn.Sequential(nonlinearity, self.conv1, nonlinearity, self.conv2,)
+            self.model = nn.Sequential(nonlinearity, self.conv1, nonlinearity, self.conv2, )
         else:
-            self.model = nn.Sequential(norm_layer(input_nc), nonlinearity, self.conv1, norm_layer(hidden_nc), nonlinearity, self.conv2,)
+            self.model = nn.Sequential(norm_layer(input_nc), nonlinearity, self.conv1, norm_layer(hidden_nc),
+                                       nonlinearity, self.conv2, )
 
-        self.shortcut = nn.Sequential(self.bypass,)
+        self.shortcut = nn.Sequential(self.bypass, )
 
     def forward(self, x):
         if self.sample:
@@ -236,7 +244,9 @@ class ResBlockEncoderOptimized(nn.Module):
     """
     Define an Encoder block for the first layer of the discriminator and representation network
     """
-    def __init__(self, input_nc, output_nc, norm_layer=nn.BatchNorm2d, nonlinearity= nn.LeakyReLU(), use_spect=False, use_coord=False):
+
+    def __init__(self, input_nc, output_nc, norm_layer=nn.BatchNorm2d, nonlinearity=nn.LeakyReLU(), use_spect=False,
+                 use_coord=False):
         super(ResBlockEncoderOptimized, self).__init__()
 
         kwargs = {'kernel_size': 3, 'stride': 1, 'padding': 1}
@@ -249,7 +259,8 @@ class ResBlockEncoderOptimized(nn.Module):
         if type(norm_layer) == type(None):
             self.model = nn.Sequential(self.conv1, nonlinearity, self.conv2, nn.AvgPool2d(kernel_size=2, stride=2))
         else:
-            self.model = nn.Sequential(self.conv1, norm_layer(output_nc), nonlinearity, self.conv2, nn.AvgPool2d(kernel_size=2, stride=2))
+            self.model = nn.Sequential(self.conv1, norm_layer(output_nc), nonlinearity, self.conv2,
+                                       nn.AvgPool2d(kernel_size=2, stride=2))
 
         self.shortcut = nn.Sequential(nn.AvgPool2d(kernel_size=2, stride=2), self.bypass)
 
@@ -263,20 +274,24 @@ class ResBlockDecoder(nn.Module):
     """
     Define a decoder block
     """
-    def __init__(self, input_nc, output_nc, hidden_nc=None, norm_layer=nn.BatchNorm2d, nonlinearity= nn.LeakyReLU(),
+
+    def __init__(self, input_nc, output_nc, hidden_nc=None, norm_layer=nn.BatchNorm2d, nonlinearity=nn.LeakyReLU(),
                  use_spect=False, use_coord=False):
         super(ResBlockDecoder, self).__init__()
 
         hidden_nc = output_nc if hidden_nc is None else hidden_nc
 
         self.conv1 = spectral_norm(nn.Conv2d(input_nc, hidden_nc, kernel_size=3, stride=1, padding=1), use_spect)
-        self.conv2 = spectral_norm(nn.ConvTranspose2d(hidden_nc, output_nc, kernel_size=3, stride=2, padding=1, output_padding=1), use_spect)
-        self.bypass = spectral_norm(nn.ConvTranspose2d(input_nc, output_nc, kernel_size=3, stride=2, padding=1, output_padding=1), use_spect)
+        self.conv2 = spectral_norm(
+            nn.ConvTranspose2d(hidden_nc, output_nc, kernel_size=3, stride=2, padding=1, output_padding=1), use_spect)
+        self.bypass = spectral_norm(
+            nn.ConvTranspose2d(input_nc, output_nc, kernel_size=3, stride=2, padding=1, output_padding=1), use_spect)
 
         if type(norm_layer) == type(None):
-            self.model = nn.Sequential(nonlinearity, self.conv1, nonlinearity, self.conv2,)
+            self.model = nn.Sequential(nonlinearity, self.conv1, nonlinearity, self.conv2, )
         else:
-            self.model = nn.Sequential(norm_layer(input_nc), nonlinearity, self.conv1, norm_layer(hidden_nc), nonlinearity, self.conv2,)
+            self.model = nn.Sequential(norm_layer(input_nc), nonlinearity, self.conv1, norm_layer(hidden_nc),
+                                       nonlinearity, self.conv2, )
 
         self.shortcut = nn.Sequential(self.bypass)
 
@@ -290,18 +305,20 @@ class Output(nn.Module):
     """
     Define the output layer
     """
-    def __init__(self, input_nc, output_nc, kernel_size = 3, norm_layer=nn.BatchNorm2d, nonlinearity= nn.LeakyReLU(),
+
+    def __init__(self, input_nc, output_nc, kernel_size=3, norm_layer=nn.BatchNorm2d, nonlinearity=nn.LeakyReLU(),
                  use_spect=False, use_coord=False):
         super(Output, self).__init__()
 
-        kwargs = {'kernel_size': kernel_size, 'padding':0, 'bias': True}
+        kwargs = {'kernel_size': kernel_size, 'padding': 0, 'bias': True}
 
         self.conv1 = coord_conv(input_nc, output_nc, use_spect, use_coord, **kwargs)
 
         if type(norm_layer) == type(None):
-            self.model = nn.Sequential(nonlinearity, nn.ReflectionPad2d(int(kernel_size/2)), self.conv1, nn.Tanh())
+            self.model = nn.Sequential(nonlinearity, nn.ReflectionPad2d(int(kernel_size / 2)), self.conv1, nn.Tanh())
         else:
-            self.model = nn.Sequential(norm_layer(input_nc), nonlinearity, nn.ReflectionPad2d(int(kernel_size / 2)), self.conv1, nn.Tanh())
+            self.model = nn.Sequential(norm_layer(input_nc), nonlinearity, nn.ReflectionPad2d(int(kernel_size / 2)),
+                                       self.conv1, nn.Tanh())
 
     def forward(self, x):
         out = self.model(x)
@@ -322,7 +339,7 @@ class Auto_Attn(nn.Module):
 
         self.softmax = nn.Softmax(dim=-1)
 
-        self.model = ResBlock(int(input_nc*2), input_nc, input_nc, norm_layer=norm_layer, use_spect=True)
+        self.model = ResBlock(int(input_nc * 2), input_nc, input_nc, norm_layer=norm_layer, use_spect=True)
 
     def forward(self, x, pre=None, mask=None):
         """
@@ -347,14 +364,14 @@ class Auto_Attn(nn.Module):
 
         if type(pre) != type(None):
             # using long distance attention layer to copy information from valid regions
-            context_flow = torch.bmm(pre.view(B, -1, W*H), attention.permute(0, 2, 1)).view(B, -1, W, H)
-            context_flow = self.alpha * (1-mask) * context_flow + (mask) * pre
+            context_flow = torch.bmm(pre.view(B, -1, W * H), attention.permute(0, 2, 1)).view(B, -1, W, H)
+            context_flow = self.alpha * (1 - mask) * context_flow + (mask) * pre
             out = self.model(torch.cat([out, context_flow], dim=1))
 
         return out, attention
 
 
-class SimAM(torch.nn.Module):
+class SimAM(nn.Module):
     def __init__(self, channels=None, e_lambda=1e-4):
         super(SimAM, self).__init__()
 
@@ -379,3 +396,32 @@ class SimAM(torch.nn.Module):
         y = x_minus_mu_square / (4 * (x_minus_mu_square.sum(dim=[2, 3], keepdim=True) / n + self.e_lambda)) + 0.5
 
         return x * self.activaton(y)
+
+
+class HardSPDNorm(nn.Module):
+    def __init__(self, n, k, input_nc):
+        super(HardSPDNorm, self).__init__()
+        self.n = n
+        self.k = k
+        self.gamma_conv = nn.Conv2d(input_nc, input_nc, kernel_size=1, stride=1, padding=0)
+        self.beta_conv = nn.Conv2d(input_nc, input_nc, kernel_size=1, stride=1, padding=0)
+
+    def forward(self, img_m, mask):
+        # D_h
+        kernel = torch.ones(mask.shape[0], mask.shape[1], 3, 3)
+        D_h = mask
+        msk = D_h.detach()
+        msk = torch.where(msk == 1, True, False)
+        for i in range(1, self.n + 1):
+            D_h = F.conv2d(D_h, kernel, stride=1, padding=1)
+            tmp = D_h.detach()
+            tmp = torch.where(tmp > 0, True, False)
+            tmp = tmp & ~msk
+            msk = msk | tmp
+            mask[tmp] = 1 / self.k ** (i)
+            D_h = mask
+
+        gamma_p = self.gamma_conv(img_m)
+        beta_p = self.beta_conv(img_m)
+
+
