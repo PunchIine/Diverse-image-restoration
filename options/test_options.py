@@ -13,5 +13,6 @@ class TestOptions(BaseOptions):
         parser.add_argument('--save_number', type=int, default=10, help='choice # reasonable results based on the discriminator score')
 
         self.isTrain = False
+        self.pd_isTrain = None
 
         return parser

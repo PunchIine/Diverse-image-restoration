@@ -402,13 +402,8 @@ class PD_Generator(nn.Module):
             else:
                 # upconv = ResBlock(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, 'up', True)
                 upconv = ResBlockDecoder(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord)
-            block_s = ResBlockSPDNorm(ngf * mult, 3, math.log2(256 / (ngf * mult)), self.n, self.k)
+            block_s = ResBlockSPDNorm(ngf * mult, 3, int(math.log2(256 / 2 ** (i + 4))), self.n, self.k)
             setattr(self, 'decoder' + str(i), upconv)
-            # [8, 128, 16, 16]
-            # [8, 128, 32, 32]
-            # [8, 128, 64, 64]
-            # [8, 64, 128, 128]
-            # [8, 32, 256, 256]
             setattr(self, 'SPDNorm' + str(i), block_s)
             # output part
             if i > layers - output_scale - 1:

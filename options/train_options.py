@@ -24,5 +24,6 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--no_html', action='store_true', help='do not save intermediate training results')
 
         self.isTrain = True
+        self.pd_isTrain = None
 
         return parser

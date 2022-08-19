@@ -6,7 +6,7 @@ import numpy as np
 import itertools
 
 
-class PD_GAN(BaseModel):
+class pdgan(BaseModel):
     """This class implements the pluralistic image completion, for 256*256 resolution image inpainting"""
     def name(self):
         return "PD_GAN"
@@ -47,8 +47,8 @@ class PD_GAN(BaseModel):
             self.L2loss = torch.nn.MSELoss()
             self.Ms_L1loss = MS_L1loss.MS_SSIM_L1_LOSS()
             # define the optimizer
-            self.optimizer_G = torch.optim.Adam(itertools.chain(filter(lambda p: p.requires_grad, self.net_G.parameters())), lr=opt.lr, betas=(0.0, 0.999))
-            self.optimizer_D = torch.optim.Adam(itertools.chain(filter(lambda p: p.requires_grad, self.net_D.parameters())), lr=opt.lr, betas=(0.0, 0.999))
+            self.optimizer_G = torch.optim.Adam(itertools.chain(filter(lambda p: p.requires_grad, self.net_G_pd.parameters())), lr=opt.lr, betas=(0.0, 0.999))
+            self.optimizer_D = torch.optim.Adam(itertools.chain(filter(lambda p: p.requires_grad, self.net_D_pd.parameters())), lr=opt.lr, betas=(0.0, 0.999))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
         # load the pretrained model and schedulers
@@ -75,8 +75,8 @@ class PD_GAN(BaseModel):
         self.scale_mask = task.scale_pyramid(self.mask, self.opt.output_scale)
 
     def forward(self, img_p, mask):
-        z = torch.Tensor(np.random.normal(0, 1, (self.batchSize, 128)))
-        results, attn = self.net_G_pd(z, mask)
+        z = torch.Tensor(np.random.normal(0, 1, (self.batchSize, 128, self.batchSize, self.batchSize)))
+        results, attn = self.net_G_pd(z, mask, img_p)
         self.img_g = []
         for result in results:
             img_g = result[-1]

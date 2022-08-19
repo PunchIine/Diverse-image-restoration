@@ -399,12 +399,13 @@ class SimAM(nn.Module):
 
 
 class HardSPDNorm(nn.Module):
-    def __init__(self, n, k, p_input_nc):
+    def __init__(self, n, k, p_input_nc, F_in_nc):
         super(HardSPDNorm, self).__init__()
         self.n = n
         self.k = k
-        self.gamma_conv = nn.Conv2d(p_input_nc, p_input_nc, kernel_size=1, stride=1)
-        self.beta_conv = nn.Conv2d(p_input_nc, p_input_nc, kernel_size=1, stride=1)
+        self.F_in_nc = F_in_nc
+        self.gamma_conv = nn.Conv2d(p_input_nc, F_in_nc, kernel_size=1, stride=1)
+        self.beta_conv = nn.Conv2d(p_input_nc, F_in_nc, kernel_size=1, stride=1)
         self.dsample_p = nn.AvgPool2d(kernel_size=2, stride=2)
         self.dsample_m = nn.MaxPool2d(kernel_size=2, stride=2)
 
@@ -413,8 +414,9 @@ class HardSPDNorm(nn.Module):
         for i in range(n_ds):
             img_p = self.dsample_p(img_p)
             mask = self.dsample_m(mask)
+        mask, _, _ = torch.chunk(mask, dim=1, chunks=3)
         # D_h
-        kernel = torch.ones(mask.shape[0], mask.shape[1], 3, 3)
+        kernel = torch.ones(mask.shape[1], mask.shape[1], 3, 3).cuda()
         D_h = mask
         msk = D_h.detach()
         msk = torch.where(msk == 1, True, False)
@@ -429,14 +431,13 @@ class HardSPDNorm(nn.Module):
 
         gamma_p = self.gamma_conv(img_p)
         beta_p = self.beta_conv(img_p)
-
-        gamma_d = torch.matmul(gamma_p, D_h)
-        beta_d = torch.matmul(beta_p, D_h)
+        gamma_d = gamma_p * D_h
+        beta_d = beta_p * D_h
 
         F_in = (F_in - torch.mean(F_in)) / torch.sqrt(torch.var(F_in) ** 2 + 1e-5)
 
-        f_in = torch.matmul(F_in, gamma_d)
-        F_hard = torch.cat([f_in, beta_d], dim=1)
+        f_in = F_in * gamma_d
+        F_hard = f_in + beta_d
 
         return F_hard
 
@@ -444,10 +445,10 @@ class HardSPDNorm(nn.Module):
 class SoftSPDNorm(nn.Module):
     def __init__(self, p_input_nc, F_in_nc):
         super(SoftSPDNorm, self).__init__()
-        self.gamma_conv = nn.Conv2d(p_input_nc, p_input_nc, kernel_size=1, stride=1, padding=0)
-        self.beta_conv = nn.Conv2d(p_input_nc, p_input_nc, kernel_size=1, stride=1, padding=0)
-        self.p_conv = nn.Conv2d(3, F_in_nc, stride=1, padding=1, kernel_size=1)
-        self.f_conv = nn.Conv2d(2 * F_in_nc, 3, kernel_size=1, stride=1)
+        self.gamma_conv = nn.Conv2d(p_input_nc, F_in_nc, kernel_size=1, stride=1, padding=0)
+        self.beta_conv = nn.Conv2d(p_input_nc, F_in_nc, kernel_size=1, stride=1, padding=0)
+        self.p_conv = nn.Conv2d(3, F_in_nc, stride=1, kernel_size=1)
+        self.f_conv = nn.Conv2d(2 * F_in_nc, 1, kernel_size=1, stride=1)
         self.dsample_p = nn.AvgPool2d(kernel_size=2, stride=2)
         self.dsample_m = nn.MaxPool2d(kernel_size=2, stride=2)
         self.sigmoid = nn.Sigmoid()
@@ -457,6 +458,7 @@ class SoftSPDNorm(nn.Module):
         for i in range(n_ds):
             img_p = self.dsample_p(img_p)
             mask = self.dsample_m(mask)
+        mask, _, _ = torch.chunk(mask, dim=1, chunks=3)
         F_in = (F_in - torch.mean(F_in)) / torch.sqrt(torch.var(F_in) ** 2 + 1e-5)
 
         F_p = self.p_conv(img_p)
@@ -467,11 +469,11 @@ class SoftSPDNorm(nn.Module):
         gamma_p = self.gamma_conv(img_p)
         beta_p = self.beta_conv(img_p)
 
-        gamma_d = torch.matmul(gamma_p, D_s)
-        beta_d = torch.matmul(beta_p, D_s)
+        gamma_d = gamma_p * D_s
+        beta_d = beta_p * D_s
 
-        f_in = torch.matmul(F_in, gamma_d)
-        F_soft = torch.cat([f_in, beta_d], dim=1)
+        f_in = F_in * gamma_d
+        F_soft = f_in + beta_d
 
         return F_soft
 
@@ -479,8 +481,8 @@ class SoftSPDNorm(nn.Module):
 class ResBlockSPDNorm(nn.Module):
     def __init__(self, F_in_nc, p_input_nc, n_ds, n, k):
         super(ResBlockSPDNorm, self).__init__()
-        self.HardSPDNorm_1 = HardSPDNorm(n, k, p_input_nc)
-        self.HardSPDNorm_2 = HardSPDNorm(n, k, p_input_nc)
+        self.HardSPDNorm_1 = HardSPDNorm(n, k, p_input_nc, F_in_nc)
+        self.HardSPDNorm_2 = HardSPDNorm(n, k, p_input_nc, F_in_nc)
         self.SoftSPDNorm = SoftSPDNorm(p_input_nc, F_in_nc)
 
         self.n_ds = n_ds
@@ -492,7 +494,7 @@ class ResBlockSPDNorm(nn.Module):
         # the SoftSPDNorm
         out_s = self.SoftSPDNorm(F_in, img_p, mask, self.n_ds)
         # output
-        out = torch.cat([out_h, out_s], dim=1)
+        out = out_h + out_s
 
         return out
 

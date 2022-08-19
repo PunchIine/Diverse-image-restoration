@@ -269,7 +269,7 @@ class GroupNorm(nn.Module):
     def forward(self, x):
         N, C, H, W = x.size()
         G = self.num_groups
-        assert C % G == 0
+#        assert C % G == 0
 
         x = x.view(N,G,-1)
         mean = x.mean(-1, keepdim=True)
