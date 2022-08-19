@@ -10,6 +10,7 @@ class BaseModel():
         self.opt = opt
         self.gpu_ids = opt.gpu_ids
         self.isTrain = opt.isTrain
+        self.pd_isTrain = opt.pd_isTrain
         self.save_dir = os.path.join(opt.checkpoints_dir, opt.name)
         self.loss_names = []
         self.model_names = []
@@ -37,6 +38,14 @@ class BaseModel():
             self.schedulers = [base_function.get_scheduler(optimizer, opt) for optimizer in self.optimizers]
         if not self.isTrain or opt.continue_train:
             self.load_networks(opt.which_iter)
+
+    def pd_setup(self, opt):
+        """Load networks, create schedulers"""
+        if self.pd_isTrain:
+            self.schedulers = [base_function.get_scheduler(optimizer, opt) for optimizer in self.optimizers]
+        if not self.pd_isTrain or opt.continue_train:
+            self.load_networks(opt.which_iter)
+
 
     def eval(self):
         """Make models eval mode during test time"""

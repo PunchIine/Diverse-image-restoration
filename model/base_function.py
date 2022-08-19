@@ -329,7 +329,7 @@ class Output(nn.Module):
 class Auto_Attn(nn.Module):
     """ Short+Long attention Layer"""
 
-    def __init__(self, input_nc, norm_layer=GroupNorm):
+    def __init__(self, input_nc, norm_layer=nn.BatchNorm2d):
         super(Auto_Attn, self).__init__()
         self.input_nc = input_nc
 
@@ -399,14 +399,20 @@ class SimAM(nn.Module):
 
 
 class HardSPDNorm(nn.Module):
-    def __init__(self, n, k, input_nc):
+    def __init__(self, n, k, p_input_nc):
         super(HardSPDNorm, self).__init__()
         self.n = n
         self.k = k
-        self.gamma_conv = nn.Conv2d(input_nc, input_nc, kernel_size=1, stride=1, padding=0)
-        self.beta_conv = nn.Conv2d(input_nc, input_nc, kernel_size=1, stride=1, padding=0)
+        self.gamma_conv = nn.Conv2d(p_input_nc, p_input_nc, kernel_size=1, stride=1)
+        self.beta_conv = nn.Conv2d(p_input_nc, p_input_nc, kernel_size=1, stride=1)
+        self.dsample_p = nn.AvgPool2d(kernel_size=2, stride=2)
+        self.dsample_m = nn.MaxPool2d(kernel_size=2, stride=2)
 
-    def forward(self, img_m, mask):
+    def forward(self, F_in, img_p, mask, n_ds):
+        # downsample
+        for i in range(n_ds):
+            img_p = self.dsample_p(img_p)
+            mask = self.dsample_m(mask)
         # D_h
         kernel = torch.ones(mask.shape[0], mask.shape[1], 3, 3)
         D_h = mask
@@ -421,7 +427,73 @@ class HardSPDNorm(nn.Module):
             mask[tmp] = 1 / self.k ** (i)
             D_h = mask
 
-        gamma_p = self.gamma_conv(img_m)
-        beta_p = self.beta_conv(img_m)
+        gamma_p = self.gamma_conv(img_p)
+        beta_p = self.beta_conv(img_p)
+
+        gamma_d = torch.matmul(gamma_p, D_h)
+        beta_d = torch.matmul(beta_p, D_h)
+
+        F_in = (F_in - torch.mean(F_in)) / torch.sqrt(torch.var(F_in) ** 2 + 1e-5)
+
+        f_in = torch.matmul(F_in, gamma_d)
+        F_hard = torch.cat([f_in, beta_d], dim=1)
+
+        return F_hard
+
+
+class SoftSPDNorm(nn.Module):
+    def __init__(self, p_input_nc, F_in_nc):
+        super(SoftSPDNorm, self).__init__()
+        self.gamma_conv = nn.Conv2d(p_input_nc, p_input_nc, kernel_size=1, stride=1, padding=0)
+        self.beta_conv = nn.Conv2d(p_input_nc, p_input_nc, kernel_size=1, stride=1, padding=0)
+        self.p_conv = nn.Conv2d(3, F_in_nc, stride=1, padding=1, kernel_size=1)
+        self.f_conv = nn.Conv2d(2 * F_in_nc, 3, kernel_size=1, stride=1)
+        self.dsample_p = nn.AvgPool2d(kernel_size=2, stride=2)
+        self.dsample_m = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, F_in, img_p, mask, n_ds):
+        # downsample
+        for i in range(n_ds):
+            img_p = self.dsample_p(img_p)
+            mask = self.dsample_m(mask)
+        F_in = (F_in - torch.mean(F_in)) / torch.sqrt(torch.var(F_in) ** 2 + 1e-5)
+
+        F_p = self.p_conv(img_p)
+        F_mix = torch.cat([F_p, F_in], dim=1)
+        F_conv = self.f_conv(F_mix)
+        D_s = self.sigmoid(F_conv * (1 - mask) + mask)
+
+        gamma_p = self.gamma_conv(img_p)
+        beta_p = self.beta_conv(img_p)
+
+        gamma_d = torch.matmul(gamma_p, D_s)
+        beta_d = torch.matmul(beta_p, D_s)
+
+        f_in = torch.matmul(F_in, gamma_d)
+        F_soft = torch.cat([f_in, beta_d], dim=1)
+
+        return F_soft
+
+
+class ResBlockSPDNorm(nn.Module):
+    def __init__(self, F_in_nc, p_input_nc, n_ds, n, k):
+        super(ResBlockSPDNorm, self).__init__()
+        self.HardSPDNorm_1 = HardSPDNorm(n, k, p_input_nc)
+        self.HardSPDNorm_2 = HardSPDNorm(n, k, p_input_nc)
+        self.SoftSPDNorm = SoftSPDNorm(p_input_nc, F_in_nc)
+
+        self.n_ds = n_ds
+
+    def forward(self, F_in, img_p, mask):
+        # the HardSPDNorm
+        out_h1 = self.HardSPDNorm_1(F_in, img_p, mask, self.n_ds)
+        out_h = self.HardSPDNorm_2(out_h1, img_p, mask, self.n_ds)
+        # the SoftSPDNorm
+        out_s = self.SoftSPDNorm(F_in, img_p, mask, self.n_ds)
+        # output
+        out = torch.cat([out_h, out_s], dim=1)
+
+        return out
 
 

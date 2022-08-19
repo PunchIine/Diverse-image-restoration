@@ -1,3 +1,5 @@
+import math
+
 from .base_function import *
 from .external_function import SpectralNorm
 import torch.nn.functional as F
@@ -22,6 +24,14 @@ def define_g(output_nc=3, ngf=64, z_nc=512, img_f=512, L=1, layers=5, norm='inst
     return init_net(net, init_type, activation, gpu_ids)
 
 
+def define_pd_g(output_nc=3, ngf=64, z_nc=512, img_f=512, L=1, layers=5, norm='instance', activation='ReLU', output_scale=1,
+             use_spect=True, use_coord=False, use_attn=True, init_type='orthogonal', gpu_ids=[]):
+
+    net = PD_Generator(output_nc, ngf, z_nc, img_f, L, layers, norm, activation, output_scale, use_spect, use_coord, use_attn)
+
+    return init_net(net, init_type, activation, gpu_ids)
+
+
 def define_d(input_nc=3, ndf=64, img_f=512, layers=6, norm='none', activation='LeakyReLU', use_spect=True, use_coord=False,
              use_attn=True,  model_type='ResDis', init_type='orthogonal', gpu_ids=[]):
 
@@ -32,6 +42,16 @@ def define_d(input_nc=3, ndf=64, img_f=512, layers=6, norm='none', activation='L
 
     return init_net(net, init_type, activation, gpu_ids)
 
+
+def define_pd_d(input_nc=3, ndf=64, img_f=512, layers=6, norm='none', activation='LeakyReLU', use_spect=True, use_coord=False,
+             use_attn=True,  model_type='ResDis', init_type='orthogonal', gpu_ids=[]):
+
+    if model_type == 'ResDis':
+        net = ResDiscriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord, use_attn)
+    elif model_type == 'PatchDis':
+        net = PatchDiscriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord, use_attn)
+
+    return init_net(net, init_type, activation, gpu_ids)
 
 #############################################################################################################
 # Network structure
@@ -179,7 +199,7 @@ class ResGenerator(nn.Module):
                 upconv = ResBlockDecoder(ngf * mult_prev + output_nc, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord)
             else:
                 # upconv = ResBlock(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, 'up', True)
-                upconv = ResBlockDecoder(ngf * mult_prev , ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord)
+                upconv = ResBlockDecoder(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord)
             setattr(self, 'decoder' + str(i), upconv)
             # output part
             if i > layers - output_scale - 1:
@@ -332,3 +352,109 @@ class PatchDiscriminator(nn.Module):
     def forward(self, x):
         out = self.model(x)
         return out
+
+
+class PD_Generator(nn.Module):
+    """
+    PD Generator Network
+    :param output_nc: number of channels in output
+    :param ngf: base filter channel
+    :param z_nc: latent channels
+    :param img_f: the largest feature channels
+    :param L: Number of refinements of density
+    :param layers: down and up sample layers
+    :param norm: normalization function 'instance, batch, group'
+    :param activation: activation function 'ReLU, SELU, LeakyReLU, PReLU'
+    :param output_scale: Different output scales
+    """
+    def __init__(self, output_nc=3, ngf=64, z_nc=128, img_f=1024, L=1, layers=6, norm='batch', activation='ReLU',
+                 output_scale=1, k=4, n=2, use_spect=True, use_coord=False, use_attn=True):
+        super(PD_Generator, self).__init__()
+
+        self.layers = layers
+        self.L = L
+        self.output_scale = output_scale
+        self.use_attn = use_attn
+
+        self.n = n
+        self.k = k
+
+        norm_layer = get_norm_layer(norm_type=norm)
+        nonlinearity = get_nonlinearity_layer(activation_type=activation)
+        # latent z to feature
+        mult = min(2 ** (layers-1), img_f // ngf)
+        self.generator = ResBlock(z_nc, ngf * mult, ngf * mult, None, nonlinearity, 'none', use_spect, use_coord)
+
+        # transform
+        for i in range(self.L):
+            block = ResBlock(ngf * mult, ngf * mult, ngf * mult, None, nonlinearity, 'none', use_spect, use_coord)
+            setattr(self, 'generator' + str(i), block)
+
+        # decoder part
+        for i in range(layers):
+            if i > 1:
+                self.n = 4
+            mult_prev = mult  # 4
+            mult = min(2 ** (layers - i - 1), img_f // ngf)
+            if i > layers - output_scale:
+                # upconv = ResBlock(ngf * mult_prev + output_nc, ngf * mult, ngf * mult, norm_layer, nonlinearity, 'up', True)
+                upconv = ResBlockDecoder(ngf * mult_prev + output_nc, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord)
+            else:
+                # upconv = ResBlock(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, 'up', True)
+                upconv = ResBlockDecoder(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord)
+            block_s = ResBlockSPDNorm(ngf * mult, 3, math.log2(256 / (ngf * mult)), self.n, self.k)
+            setattr(self, 'decoder' + str(i), upconv)
+            # [8, 128, 16, 16]
+            # [8, 128, 32, 32]
+            # [8, 128, 64, 64]
+            # [8, 64, 128, 128]
+            # [8, 32, 256, 256]
+            setattr(self, 'SPDNorm' + str(i), block_s)
+            # output part
+            if i > layers - output_scale - 1:
+                outconv = Output(ngf * mult, output_nc, 3, None, nonlinearity, use_spect, use_coord)
+                setattr(self, 'out' + str(i), outconv)
+            # short+long term attention part
+            if i == 1 and use_attn:
+                # simam = SimAM()
+                # setattr(self, 'simam' + str(i), simam)
+                attn = Auto_Attn(ngf*mult, None)
+                setattr(self, 'attn' + str(i), attn)
+
+    def forward(self, z, mask=None, img_p=None):
+        """
+        PD Generator Network
+        :param z: latent vector
+        :param f_m: feature of valid regions for conditional VAG-GAN
+        :param f_e: previous encoder feature for short+long term attention layer
+        :return results: different scale generation outputs
+        """
+
+        f = self.generator(z)
+        for i in range(self.L):
+            generator = getattr(self, 'generator' + str(i))
+            f = generator(f)
+
+        # the features come from mask regions and valid regions, we directly add them together
+        out = f
+        # [8, 128, 8, 8]
+        results = []
+        attn = 0
+        for i in range(self.layers):
+            model = getattr(self, 'decoder' + str(i))
+            out = model(out)
+            model = getattr(self, 'SPDNorm' + str(i))
+            out = model(out, img_p, mask)
+            if i == 1 and self.use_attn:
+                # auto attention
+                # model = getattr(self, 'simam' + str(i))
+                # out = model(out)
+                model = getattr(self, 'attn' + str(i))
+                out, attn = model(out, mask=mask)
+            if i > self.layers - self.output_scale - 1:
+                model = getattr(self, 'out' + str(i))
+                output = model(out)
+                results.append(output)
+                out = torch.cat([out, output], dim=1)
+
+        return results, attn

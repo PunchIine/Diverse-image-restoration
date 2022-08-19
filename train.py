@@ -25,7 +25,7 @@ if __name__ == '__main__':
     # training process
     while(keep_training):
         epoch_start_time = time.time()
-        epoch+=1
+        epoch += 1
         print('\n Training epoch: %d' % epoch)
 
         for i, data in enumerate(dataset):
