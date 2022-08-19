@@ -107,7 +107,7 @@ class Pluralistic(BaseModel):
         z = q_distribution.sample()
         self.img_g, attn = self.net_G(z, f_m=f[-1], f_e=f[2], mask=scale_mask.chunk(3, dim=1)[0])
         self.img_out = (1 - self.mask) * self.img_g[-1].detach() + self.mask * self.img_m
-        return self.img_out, self.mask
+        return self.img_out, self.mask, self.img_truth
 
 
     def get_distribution(self, distributions):

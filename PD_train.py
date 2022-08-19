@@ -34,4 +34,33 @@ if __name__=='__main__':
             model_pic.set_input(data)
             img_p, mask = model_pic.feed()
             model_pd.pd_optimize_parameters(img_p, mask)
+
+            # display images on visdom and save images
+            if total_iteration % opt.display_freq == 0:
+                visualizer.display_current_results(model_pd.get_current_visuals(), epoch)
+                visualizer.plot_current_distribution(model_pd.get_current_dis())
+
+            # print training loss and save logging information to the disk
+            if total_iteration % opt.print_freq == 0:
+                losses = model_pd_pd.get_current_errors()
+                t = (time.time() - iter_start_time) / opt.batchSize
+                visualizer.print_current_errors(epoch, total_iteration, losses, t)
+                if opt.display_id > 0:
+                    visualizer.plot_current_errors(total_iteration, losses)
+
+            # save the latest model_pd every <save_latest_freq> iterations to the disk
+            if total_iteration % opt.save_latest_freq == 0:
+                print('saving the latest model_pd (epoch %d, total_steps %d)' % (epoch, total_iteration))
+                model_pd.save_networks('latest')
+
+            # save the model_pd every <save_iter_freq> iterations to the disk
+            if total_iteration % opt.save_iters_freq == 0:
+                print('saving the model_pd of iterations %d' % total_iteration)
+                model_pd.save_networks(total_iteration)
+
+            if total_iteration > max_iteration:
+                keep_training = False
+                break
+
             model_pd.update_learning_rate()
+

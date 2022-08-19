@@ -74,7 +74,9 @@ class pdgan(BaseModel):
         self.scale_img = task.scale_pyramid(self.img_truth, self.opt.output_scale)
         self.scale_mask = task.scale_pyramid(self.mask, self.opt.output_scale)
 
-    def forward(self, img_p, mask):
+    def forward(self, img_p, mask, img_truth):
+        self.mask = mask
+        self.truth = img_truth
         z = torch.Tensor(np.random.normal(0, 1, (self.batchSize, 128, self.batchSize, self.batchSize)))
         results, attn = self.net_G_pd(z, mask, img_p)
         self.img_g = []
@@ -127,10 +129,7 @@ class pdgan(BaseModel):
         # calculate l1 loss ofr multi-scale outputs
         loss_app_g = 0, 0
         for i, (img_fake_i, img_real_i, mask_i) in enumerate(zip(self.img_g, self.scale_img, self.scale_mask)):
-            if self.opt.train_paths == "one":
-                loss_app_g += self.Ms_L1loss(img_fake_i, img_real_i)
-            elif self.opt.train_paths == "two":
-                loss_app_g += self.Ms_L1loss(img_fake_i*mask_i, img_real_i*mask_i)
+            loss_app_g += self.Ms_L1loss(img_fake_i, img_real_i)
         self.loss_app_g = loss_app_g * self.opt.lambda_rec
 
         # if one path during the training, just calculate the loss for generation path
@@ -144,10 +143,10 @@ class pdgan(BaseModel):
         total_loss.backward()
 
 
-    def pd_optimize_parameters(self, img_p, mask):
+    def pd_optimize_parameters(self, img_p, mask, img_truth):
         """update network weights"""
         # compute the image completion results
-        self.forward(img_p, mask)
+        self.forward(img_p, mask, img_truth)
         # optimize the discrinimator network parameters
         self.optimizer_D.zero_grad()
         self.backward_D()
