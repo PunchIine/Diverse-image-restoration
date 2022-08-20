@@ -3,8 +3,10 @@ from dataloader import data_loader
 from model import create_model
 from util import visualizer
 import time
+import torch
 
 if __name__=='__main__':
+    torch.autograd.set_detect_anomaly(True)
     # get testing options
     opt_feed = test_options.TestOptions().parse()
     # creat a dataset
@@ -20,6 +22,7 @@ if __name__=='__main__':
     # create a visualizer
     visualizer = visualizer.Visualizer(opt)
     keep_training = True
+    max_iteration = opt.niter+opt.niter_decay
     epoch = 0
     total_iteration = opt.iter_count
 
@@ -32,17 +35,17 @@ if __name__=='__main__':
             iter_start_time = time.time()
             total_iteration += 1
             model_pic.set_input(data)
-            img_p, mask = model_pic.feed()
-            model_pd.pd_optimize_parameters(img_p, mask)
+            img_p, mask, img_truth = model_pic.feed()
+            model_pd.set_input(data)
+            model_pd.pd_optimize_parameters(img_p, mask, img_truth)
 
             # display images on visdom and save images
             if total_iteration % opt.display_freq == 0:
                 visualizer.display_current_results(model_pd.get_current_visuals(), epoch)
-                visualizer.plot_current_distribution(model_pd.get_current_dis())
 
             # print training loss and save logging information to the disk
             if total_iteration % opt.print_freq == 0:
-                losses = model_pd_pd.get_current_errors()
+                losses = model_pd.get_current_errors()
                 t = (time.time() - iter_start_time) / opt.batchSize
                 visualizer.print_current_errors(epoch, total_iteration, losses, t)
                 if opt.display_id > 0:

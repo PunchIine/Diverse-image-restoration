@@ -349,6 +349,7 @@ class Auto_Attn(nn.Module):
             out : self attention value + input feature
             attention: B X N X N (N is Width*Height)
         """
+        print(x.shape)
         B, C, W, H = x.size()
         proj_query = self.query_conv(x).view(B, -1, W * H)  # B X (N)X C
         proj_key = proj_query  # B X C x (N)
@@ -409,7 +410,7 @@ class HardSPDNorm(nn.Module):
         self.dsample_p = nn.AvgPool2d(kernel_size=2, stride=2)
         self.dsample_m = nn.MaxPool2d(kernel_size=2, stride=2)
 
-    def forward(self, F_in, img_p, mask, n_ds):
+    def forward(self, F_in, img_p, mask, n_ds, n):
         # downsample
         for i in range(n_ds):
             img_p = self.dsample_p(img_p)
@@ -429,15 +430,19 @@ class HardSPDNorm(nn.Module):
             mask[tmp] = 1 / self.k ** (i)
             D_h = mask
 
-        gamma_p = self.gamma_conv(img_p)
-        beta_p = self.beta_conv(img_p)
-        gamma_d = gamma_p * D_h
-        beta_d = beta_p * D_h
+        gamma_hp = self.gamma_conv(img_p)
+        beta_hp = self.beta_conv(img_p)
+        if n == 1:
+            gamma_hd = gamma_hp.detach() * D_h
+            beta_hd = beta_hp.detach() * D_h
+        else:
+            gamma_hd = gamma_hp * D_h
+            beta_hd = beta_hp * D_h
+
 
         F_in = (F_in - torch.mean(F_in)) / torch.sqrt(torch.var(F_in) ** 2 + 1e-5)
-
-        f_in = F_in * gamma_d
-        F_hard = f_in + beta_d
+        f_in = F_in * gamma_hd
+        F_hard = f_in + beta_hd
 
         return F_hard
 
@@ -445,8 +450,8 @@ class HardSPDNorm(nn.Module):
 class SoftSPDNorm(nn.Module):
     def __init__(self, p_input_nc, F_in_nc):
         super(SoftSPDNorm, self).__init__()
-        self.gamma_conv = nn.Conv2d(p_input_nc, F_in_nc, kernel_size=1, stride=1, padding=0)
-        self.beta_conv = nn.Conv2d(p_input_nc, F_in_nc, kernel_size=1, stride=1, padding=0)
+        self.gamma_conv = nn.Conv2d(p_input_nc, F_in_nc, kernel_size=1, stride=1)
+        self.beta_conv = nn.Conv2d(p_input_nc, F_in_nc, kernel_size=1, stride=1)
         self.p_conv = nn.Conv2d(3, F_in_nc, stride=1, kernel_size=1)
         self.f_conv = nn.Conv2d(2 * F_in_nc, 1, kernel_size=1, stride=1)
         self.dsample_p = nn.AvgPool2d(kernel_size=2, stride=2)
@@ -466,14 +471,14 @@ class SoftSPDNorm(nn.Module):
         F_conv = self.f_conv(F_mix)
         D_s = self.sigmoid(F_conv * (1 - mask) + mask)
 
-        gamma_p = self.gamma_conv(img_p)
-        beta_p = self.beta_conv(img_p)
+        gamma_sp = self.gamma_conv(img_p)
+        beta_sp = self.beta_conv(img_p)
 
-        gamma_d = gamma_p * D_s
-        beta_d = beta_p * D_s
+        gamma_sd = gamma_sp * D_s
+        beta_sd = beta_sp * D_s
 
-        f_in = F_in * gamma_d
-        F_soft = f_in + beta_d
+        f_in = F_in * gamma_sd
+        F_soft = f_in + beta_sd
 
         return F_soft
 
@@ -485,14 +490,25 @@ class ResBlockSPDNorm(nn.Module):
         self.HardSPDNorm_2 = HardSPDNorm(n, k, p_input_nc, F_in_nc)
         self.SoftSPDNorm = SoftSPDNorm(p_input_nc, F_in_nc)
 
+        self.relu = nn.ReLU()
+        self.Conv1 = nn.Conv2d(F_in_nc, F_in_nc, stride=1, padding=1, kernel_size=3)
+        self.Conv2 = nn.Conv2d(F_in_nc, F_in_nc, stride=1, padding=1, kernel_size=3)
+        self.Conv3 = nn.Conv2d(F_in_nc, F_in_nc, stride=1, padding=1, kernel_size=3)
+
         self.n_ds = n_ds
 
     def forward(self, F_in, img_p, mask):
         # the HardSPDNorm
-        out_h1 = self.HardSPDNorm_1(F_in, img_p, mask, self.n_ds)
-        out_h = self.HardSPDNorm_2(out_h1, img_p, mask, self.n_ds)
+        out_h1 = self.HardSPDNorm_1(F_in, img_p, mask, self.n_ds, 1)
+        out_h1 = self.relu(out_h1)
+        out_h1 = self.Conv1(out_h1)
+        out_h = self.HardSPDNorm_2(out_h1, img_p, mask, self.n_ds, 2)
+        out_h = self.relu(out_h)
+        out_h = self.Conv2(out_h)
         # the SoftSPDNorm
         out_s = self.SoftSPDNorm(F_in, img_p, mask, self.n_ds)
+        out_s = self.relu(out_s)
+        out_s = self.Conv3(out_s)
         # output
         out = out_h + out_s
 

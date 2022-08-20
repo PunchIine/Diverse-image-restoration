@@ -47,7 +47,7 @@ def define_pd_d(input_nc=3, ndf=64, img_f=512, layers=6, norm='none', activation
              use_attn=True,  model_type='ResDis', init_type='orthogonal', gpu_ids=[]):
 
     if model_type == 'ResDis':
-        net = ResDiscriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord, use_attn)
+        net = PD_Discriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord, use_attn)
     elif model_type == 'PatchDis':
         net = PatchDiscriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord, use_attn)
 
@@ -438,18 +438,80 @@ class PD_Generator(nn.Module):
         for i in range(self.layers):
             model = getattr(self, 'decoder' + str(i))
             out = model(out)
+            print("decoder" + str(i) + str(out.shape))
             model = getattr(self, 'SPDNorm' + str(i))
             out = model(out, img_p, mask)
+            print("SPDNorm" + str(i) + str(out.shape))
             if i == 1 and self.use_attn:
                 # auto attention
                 # model = getattr(self, 'simam' + str(i))
                 # out = model(out)
                 model = getattr(self, 'attn' + str(i))
                 out, attn = model(out, mask=mask)
+                print("attn" + str(i) + str(out.shape))
             if i > self.layers - self.output_scale - 1:
                 model = getattr(self, 'out' + str(i))
                 output = model(out)
+                print("output" + str(output.shape))
                 results.append(output)
                 out = torch.cat([out, output], dim=1)
-
+        print("result", results)
         return results, attn
+
+
+class PD_Discriminator(nn.Module):
+    """
+    ResNet Discriminator Network
+    :param input_nc: number of channels in input
+    :param ndf: base filter channel
+    :param layers: down and up sample layers
+    :param img_f: the largest feature channels
+    :param norm: normalization function 'instance, batch, group'
+    :param activation: activation function 'ReLU, SELU, LeakyReLU, PReLU'
+    """
+    def __init__(self, input_nc=3, ndf=64, img_f=1024, layers=6, norm='none', activation='LeakyReLU', use_spect=True,
+                 use_coord=False, use_attn=True):
+        super(PD_Discriminator, self).__init__()
+
+        self.layers = layers
+        self.use_attn = use_attn
+
+        norm_layer = get_norm_layer(norm_type=norm)
+        nonlinearity = get_nonlinearity_layer(activation_type=activation)
+        self.nonlinearity = nonlinearity
+
+        # encoder part
+        self.block0 = ResBlockEncoderOptimized(input_nc, ndf,norm_layer, nonlinearity, use_spect, use_coord)
+
+        mult = 1
+        for i in range(layers - 1):
+            mult_prev = mult
+            mult = min(2 ** (i + 1), img_f // ndf)
+            # self-attention
+            if i == 2 and use_attn:
+                # simam = SimAM()
+                # setattr(self, 'simam' + str(i), simam)
+                attn = Auto_Attn(ndf * mult_prev, norm_layer)
+                setattr(self, 'attn' + str(i), attn)
+            block = ResBlock(ndf * mult_prev, ndf * mult, ndf * mult_prev, norm_layer, nonlinearity, 'down', use_spect, use_coord)
+            setattr(self, 'encoder' + str(i), block)
+
+        self.block1 = ResBlock(ndf * mult, ndf * mult, ndf * mult, norm_layer, nonlinearity, 'none', use_spect, use_coord)
+        self.conv = SpectralNorm(nn.Conv2d(ndf * mult, 1, 3))
+
+    def forward(self, x):
+        out = self.block0(x)
+        print("block0" + str(out.shape))
+        for i in range(self.layers - 1):
+            if i == 2 and self.use_attn:
+                # simam = getattr(self, 'simam' + str(i))
+                # out = simam(out)
+                attn = getattr(self, 'attn' + str(i))
+                out, attention = attn(out)
+                print("attn" + str(i) + str(out.shape))
+            model = getattr(self, 'encoder' + str(i))
+            out = model(out)
+            print("encoder" + str(i) + str(out.shape))
+        out = self.block1(out)
+        out = self.conv(self.nonlinearity(out))
+        return out

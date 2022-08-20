@@ -16,9 +16,7 @@ class pdgan(BaseModel):
         """Add new options and rewrite default values for existing options"""
         parser.add_argument('--output_scale', type=int, default=4, help='# of number of the output scale')
         if pd_is_train:
-            parser.add_argument('--train_paths', type=str, default='two', help='training strategies with one path or two paths')
-            parser.add_argument('--lambda_rec', type=float, default=20.0, help='weight for image reconstruction loss')
-            parser.add_argument('--lambda_kl', type=float, default=20.0, help='weight for kl divergence loss')
+            parser.add_argument('--lambda_rec', type=float, default=10.0, help='weight for image reconstruction loss')
             parser.add_argument('--lambda_g', type=float, default=1.0, help='weight for generation loss')
 
         return parser
@@ -30,7 +28,7 @@ class pdgan(BaseModel):
         self.batchSize = opt.batchSize
 
         self.loss_names = ['app_g', 'ad_g', 'img_d']
-        self.visual_names = ['img_m', 'img_c', 'img_truth', 'img_out', 'img_g', 'img_rec']
+        self.visual_names = ['img_m', 'img_c', 'img_truth', 'img_out', 'img_g']
         self.model_names = ['G_pd', 'D_pd']
         self.distribution = []
 
@@ -76,12 +74,12 @@ class pdgan(BaseModel):
 
     def forward(self, img_p, mask, img_truth):
         self.mask = mask
-        self.truth = img_truth
-        z = torch.Tensor(np.random.normal(0, 1, (self.batchSize, 128, self.batchSize, self.batchSize)))
-        results, attn = self.net_G_pd(z, mask, img_p)
+        self.img_truth = img_truth
+        z = torch.Tensor(np.random.normal(0, 1, (self.batchSize, 128, 8, 8)))
+        results, attn = self.net_G_pd(z, self.mask, img_p)
         self.img_g = []
         for result in results:
-            img_g = result[-1]
+            img_g = result
             self.img_g.append(img_g)
         self.img_out = (1-self.mask) * self.img_g[-1].detach() + self.mask * self.img_truth
 
@@ -91,6 +89,7 @@ class pdgan(BaseModel):
         D_real = netD(real)
         D_real_loss = self.GANloss(D_real, True, True)
         # fake
+        print("fake" + str(fake.shape))
         D_fake = netD(fake.detach())
         D_fake_loss = self.GANloss(D_fake, False, True)
         # loss for discriminator
@@ -126,8 +125,8 @@ class pdgan(BaseModel):
         D_fake = self.net_D_pd(self.img_g[-1])
         self.loss_ad_g = self.GANloss(D_fake, True, False) * self.opt.lambda_g
 
+        loss_app_g = 0
         # calculate l1 loss ofr multi-scale outputs
-        loss_app_g = 0, 0
         for i, (img_fake_i, img_real_i, mask_i) in enumerate(zip(self.img_g, self.scale_img, self.scale_mask)):
             loss_app_g += self.Ms_L1loss(img_fake_i, img_real_i)
         self.loss_app_g = loss_app_g * self.opt.lambda_rec
