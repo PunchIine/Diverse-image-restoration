@@ -173,7 +173,7 @@ class pdgan(BaseModel):
         for feature in self.features:
             feature_A, feature_B = torch.split(feature, self.batchSize, dim=0)
             loss_pd += self.PD_loss(feature_A, feature_B)
-        self.loss_pd = 1 / loss_pd + 1e-5
+        self.loss_pd = 1 / (loss_pd + 1e-5)
 
         total_loss = 0
 

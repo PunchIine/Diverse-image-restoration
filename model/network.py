@@ -442,7 +442,7 @@ class PD_Generator(nn.Module):
             # print("decoder" + str(i) + str(out.shape))
             model = getattr(self, 'SPDNorm' + str(i))
             out, mask_s = model(out, img_p, mask)
-            features.append(out * mask_s)
+            features.append(out.clone() * mask_s.clone())
             # print("SPDNorm" + str(i) + str(out.shape))
             if i == 1 and self.use_attn:
                 # auto attention

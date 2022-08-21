@@ -17,7 +17,7 @@ if __name__=='__main__':
     model_pic.eval()
     opt = PD_train_options.PD_trainOptions().parse()
     opt.model = 'pdgan'
-    opt.continue_train = True
+#    opt.continue_train = True
     model_pd = create_model(opt)
     model_pd.eval()
     # create a visualizer
