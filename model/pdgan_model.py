@@ -1,7 +1,7 @@
 import torch
 from .base_model import BaseModel
 from . import network, base_function, external_function
-from .external_function import PD_Loss
+from .external_function import PD_Loss, TV_Loss
 from util import task, MS_L1loss
 import numpy as np
 import itertools
@@ -30,7 +30,7 @@ class pdgan(BaseModel):
 
         self.batchSize = opt.batchSize
 
-        self.loss_names = ['app_g', 'ad_g', 'img_d', 'pd']
+        self.loss_names = ['app_g', 'ad_g', 'img_d', 'pd', 'tv']
         self.visual_names = ['img_m', 'img_c', 'img_truth', 'img_out_A', 'img_out_B', 'img_g_A', 'img_g_B']
         self.model_names = ['G_pd', 'D_pd']
         self.features = []
@@ -48,6 +48,7 @@ class pdgan(BaseModel):
             self.L2loss = torch.nn.MSELoss()
             self.Ms_L1loss = MS_L1loss.MS_SSIM_L1_LOSS()
             self.PD_loss = PD_Loss()
+            self.TV_loss = TV_Loss()
             # define the optimizer
             self.optimizer_G = torch.optim.Adam(itertools.chain(filter(lambda p: p.requires_grad, self.net_G_pd.parameters())), lr=opt.lr, betas=(0.0, 0.999))
             self.optimizer_D = torch.optim.Adam(itertools.chain(filter(lambda p: p.requires_grad, self.net_D_pd.parameters())), lr=opt.lr, betas=(0.0, 0.999))
@@ -103,6 +104,7 @@ class pdgan(BaseModel):
 
         # pic = toPIL(self.mask.chunk(chunks=4)[-1].view(3, 256, 256))
         # pic.save('mask.jpg')
+        # print(self.mask.chunk(chunks=4)[-1].view(3, 256, 256))
 
         # pic = toPIL(self.img_truth.chunk(chunks=4)[-1].view(3, 256, 256))
         # pic.save('truth.jpg')
@@ -174,6 +176,15 @@ class pdgan(BaseModel):
             feature_A, feature_B = torch.split(feature, self.batchSize, dim=0)
             loss_pd += self.PD_loss(feature_A, feature_B)
         self.loss_pd = 1 / (loss_pd + 1e-5)
+
+        # TV loss
+        loss_tv_A = 0
+        loss_tv_B = 0
+        comp_A = self.img_g_A[-1] * (1 - self.mask) + self.mask * self.img_truth
+        comp_B = self.img_g_B[-1] * (1 - self.mask) + self.mask * self.img_truth
+        loss_tv_A = self.TV_loss(comp_A, self.mask, "mean")
+        loss_tv_B = self.TV_loss(comp_B, self.mask, "mean")
+        self.loss_tv = loss_tv_A + loss_tv_B
 
         total_loss = 0
 

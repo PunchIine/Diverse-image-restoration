@@ -149,6 +149,36 @@ class PD_Loss(nn.Module):
         return pd_loss
 
 
+class TV_Loss(nn.Module):
+    def __init__(self):
+        super(TV_Loss, self).__init__()
+
+    def __call__(self, image, mask, method):
+        hole_mask = 1 - mask
+        b, ch, h, w = hole_mask.shape
+        dilation_conv = nn.Conv2d(ch, ch, 3, padding=1, bias=False).to(hole_mask)
+        torch.nn.init.constant_(dilation_conv.weight, 1.0)
+        with torch.no_grad():
+            output_mask = dilation_conv(hole_mask)
+        updated_holes = output_mask != 0
+        dilated_holes = updated_holes.float()
+        colomns_in_Pset = dilated_holes[:, :, :, 1:] * dilated_holes[:, :, :, :-1]
+        rows_in_Pset = dilated_holes[:, :, 1:, :] * dilated_holes[:, :, :-1:, :]
+        if method == "sum":
+            loss = torch.sum(
+                torch.abs(colomns_in_Pset * (image[:, :, :, 1:] - image[:, :, :, :-1]))
+            ) + torch.sum(
+                torch.abs(rows_in_Pset * (image[:, :, :1, :] - image[:, :, -1:, :]))
+            )
+        else:
+            loss = torch.mean(
+                torch.abs(colomns_in_Pset * (image[:, :, :, 1:] - image[:, :, :, :-1]))
+            ) + torch.mean(
+                torch.abs(rows_in_Pset * (image[:, :, :1, :] - image[:, :, -1:, :]))
+            )
+        return loss
+
+
 def cal_gradient_penalty(netD, real_data, fake_data, type='mixed', constant=1.0, lambda_gp=10.0):
     """Calculate the gradient penalty loss, used in WGAN-GP paper https://arxiv.org/abs/1704.00028
     Arguments:
