@@ -136,6 +136,19 @@ class GANLoss(nn.Module):
         return loss
 
 
+class PD_Loss(nn.Module):
+
+    def __init__(self):
+        super(PD_Loss, self).__init__()
+        self.criterion = torch.nn.L1Loss()
+
+    def __call__(self, x, y):
+        # Compute features
+        pd_loss = 0.0
+        pd_loss = self.criterion(x, y)
+        return pd_loss
+
+
 def cal_gradient_penalty(netD, real_data, fake_data, type='mixed', constant=1.0, lambda_gp=10.0):
     """Calculate the gradient penalty loss, used in WGAN-GP paper https://arxiv.org/abs/1704.00028
     Arguments:

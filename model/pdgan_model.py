@@ -1,6 +1,7 @@
 import torch
 from .base_model import BaseModel
 from . import network, base_function, external_function
+from .external_function import PD_Loss
 from util import task, MS_L1loss
 import numpy as np
 import itertools
@@ -29,8 +30,8 @@ class pdgan(BaseModel):
 
         self.batchSize = opt.batchSize
 
-        self.loss_names = ['app_g', 'ad_g', 'img_d']
-        self.visual_names = ['img_m', 'img_c', 'img_truth', 'img_out', 'img_g']
+        self.loss_names = ['app_g', 'ad_g', 'img_d', 'pd']
+        self.visual_names = ['img_m', 'img_c', 'img_truth', 'img_out_A', 'img_out_B', 'img_g_A', 'img_g_B']
         self.model_names = ['G_pd', 'D_pd']
         self.features = []
 
@@ -46,6 +47,7 @@ class pdgan(BaseModel):
             self.L1loss = torch.nn.L1Loss()
             self.L2loss = torch.nn.MSELoss()
             self.Ms_L1loss = MS_L1loss.MS_SSIM_L1_LOSS()
+            self.PD_loss = PD_Loss()
             # define the optimizer
             self.optimizer_G = torch.optim.Adam(itertools.chain(filter(lambda p: p.requires_grad, self.net_G_pd.parameters())), lr=opt.lr, betas=(0.0, 0.999))
             self.optimizer_D = torch.optim.Adam(itertools.chain(filter(lambda p: p.requires_grad, self.net_D_pd.parameters())), lr=opt.lr, betas=(0.0, 0.999))
@@ -81,14 +83,20 @@ class pdgan(BaseModel):
         # pic.save('truth1.jpg')
         # pic = toPIL(self.mask.chunk(chunks=4)[-1].view(3, 256, 256))
         # pic.save('mask1.jpg')
-        z = torch.Tensor(np.random.normal(0, 1, (self.batchSize, 128, 8, 8)))
-        results, attn, features = self.net_G_pd(z, self.mask, img_p)
+        z_A = torch.Tensor(np.random.normal(0, 1, (self.batchSize, 128, 8, 8)))
+        z_B = torch.Tensor(np.random.normal(0, 1, (self.batchSize, 128, 8, 8)))
+        results, attn, features = self.net_G_pd(torch.cat([z_A, z_B], dim=0),
+                                                torch.cat([self.mask, self.mask], dim=0),
+                                                torch.cat([img_p, img_p], dim=0))
         self.features = features
-        self.img_g = []
+        self.img_g_A = []
+        self.img_g_B = []
         for result in results:
-            img_g = result
-            self.img_g.append(img_g)
-        self.img_out = (1-self.mask) * self.img_g[-1].detach() + self.mask * self.img_truth
+            img_g_A, img_g_B = torch.split(result, self.batchSize, dim=0)
+            self.img_g_A.append(img_g_A)
+            self.img_g_B.append(img_g_B)
+        self.img_out_A = (1-self.mask) * self.img_g_A[-1].detach() + self.mask * self.img_truth
+        self.img_out_B = (1-self.mask) * self.img_g_B[-1].detach() + self.mask * self.img_truth
 
         # pic = toPIL(self.img_out.chunk(chunks=4)[-1].view(3, 256, 256))
         # pic.save('out.jpg')
@@ -132,20 +140,40 @@ class pdgan(BaseModel):
     def backward_D(self):
         """Calculate the GAN loss for the discriminators"""
         base_function._unfreeze(self.net_D_pd)
-        self.loss_img_d = self.backward_D_basic(self.net_D_pd, self.img_truth, self.img_g[-1])
+        self.loss_img_d_A = self.backward_D_basic(self.net_D_pd, self.img_truth, self.img_g_A[-1])
+        self.loss_img_d_B = self.backward_D_basic(self.net_D_pd, self.img_truth, self.img_g_B[-1])
+        self.loss_img_d = self.loss_img_d_A + self.loss_img_d_B
 
     def backward_G(self):
         """Calculate training loss for the generator"""
         # generator adversarial loss
         base_function._freeze(self.net_D_pd)
         # g loss fake
-        D_fake = self.net_D_pd(self.img_g[-1])
-        self.loss_ad_g = self.GANloss(D_fake, True, False) * self.opt.lambda_g
+        D_fake_A = self.net_D_pd(self.img_g_A[-1])
+        D_fake_B = self.net_D_pd(self.img_g_B[-1])
+        self.loss_ad_g_A = self.GANloss(D_fake_A, True, False) * self.opt.lambda_g
+        self.loss_ad_g_B = self.GANloss(D_fake_B, True, False) * self.opt.lambda_g
+        self.loss_ad_g = self.loss_ad_g_A + self.loss_ad_g_B
+
         # calculate l1 loss ofr multi-scale outputs
-        loss_app_g = 0
-        for i, (img_fake_i, img_real_i, mask_i) in enumerate(zip(self.img_g, self.scale_img, self.scale_mask)):
-            loss_app_g += self.Ms_L1loss(img_fake_i, img_real_i)
-        self.loss_app_g = loss_app_g * self.opt.lambda_rec
+        loss_app_g_A = 0
+        for i, (img_fake_i, img_real_i, mask_i) in enumerate(zip(self.img_g_A, self.scale_img, self.scale_mask)):
+            loss_app_g_A += self.Ms_L1loss(img_fake_i, img_real_i)
+        self.loss_app_g_A = loss_app_g_A * self.opt.lambda_rec
+
+        loss_app_g_B = 0
+        for i, (img_fake_i, img_real_i, mask_i) in enumerate(zip(self.img_g_B, self.scale_img, self.scale_mask)):
+            loss_app_g_B += self.Ms_L1loss(img_fake_i, img_real_i)
+        self.loss_app_g_B = loss_app_g_B * self.opt.lambda_rec
+
+        self.loss_app_g = self.loss_app_g_A + self.loss_app_g_B
+
+        # Perceptual Diversity Loss
+        loss_pd = 0
+        for feature in self.features:
+            feature_A, feature_B = torch.split(feature, self.batchSize, dim=0)
+            loss_pd += self.PD_loss(feature_A, feature_B)
+        self.loss_pd = 1 / loss_pd + 1e-5
 
         total_loss = 0
 
