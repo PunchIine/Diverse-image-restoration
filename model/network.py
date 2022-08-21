@@ -434,29 +434,31 @@ class PD_Generator(nn.Module):
         out = f
         # [8, 128, 8, 8]
         results = []
+        features = []
         attn = 0
         for i in range(self.layers):
             model = getattr(self, 'decoder' + str(i))
             out = model(out)
-            print("decoder" + str(i) + str(out.shape))
+            # print("decoder" + str(i) + str(out.shape))
             model = getattr(self, 'SPDNorm' + str(i))
-            out = model(out, img_p, mask)
-            print("SPDNorm" + str(i) + str(out.shape))
+            out, mask_s = model(out, img_p, mask)
+            features.append(out * mask_s)
+            # print("SPDNorm" + str(i) + str(out.shape))
             if i == 1 and self.use_attn:
                 # auto attention
                 # model = getattr(self, 'simam' + str(i))
                 # out = model(out)
                 model = getattr(self, 'attn' + str(i))
                 out, attn = model(out, mask=mask)
-                print("attn" + str(i) + str(out.shape))
+                # print("attn" + str(i) + str(out.shape))
             if i > self.layers - self.output_scale - 1:
                 model = getattr(self, 'out' + str(i))
                 output = model(out)
-                print("output" + str(output.shape))
+                # print("output" + str(output.shape))
                 results.append(output)
                 out = torch.cat([out, output], dim=1)
-        print("result", results)
-        return results, attn
+        # print("result", results)
+        return results, attn, features
 
 
 class PD_Discriminator(nn.Module):
@@ -501,17 +503,17 @@ class PD_Discriminator(nn.Module):
 
     def forward(self, x):
         out = self.block0(x)
-        print("block0" + str(out.shape))
+        # print("block0" + str(out.shape))
         for i in range(self.layers - 1):
             if i == 2 and self.use_attn:
                 # simam = getattr(self, 'simam' + str(i))
                 # out = simam(out)
                 attn = getattr(self, 'attn' + str(i))
                 out, attention = attn(out)
-                print("attn" + str(i) + str(out.shape))
+                # print("attn" + str(i) + str(out.shape))
             model = getattr(self, 'encoder' + str(i))
             out = model(out)
-            print("encoder" + str(i) + str(out.shape))
+            # print("encoder" + str(i) + str(out.shape))
         out = self.block1(out)
         out = self.conv(self.nonlinearity(out))
         return out

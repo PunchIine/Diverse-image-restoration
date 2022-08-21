@@ -17,6 +17,7 @@ if __name__=='__main__':
     model_pic.eval()
     opt = PD_train_options.PD_trainOptions().parse()
     opt.model = 'pdgan'
+    opt.continue_train = True
     model_pd = create_model(opt)
     model_pd.eval()
     # create a visualizer
@@ -37,7 +38,7 @@ if __name__=='__main__':
             model_pic.set_input(data)
             img_p, mask, img_truth = model_pic.feed()
             model_pd.set_input(data)
-            model_pd.pd_optimize_parameters(img_p, mask, img_truth)
+            model_pd.pd_optimize_parameters(img_p)
 
             # display images on visdom and save images
             if total_iteration % opt.display_freq == 0:
@@ -65,5 +66,5 @@ if __name__=='__main__':
                 keep_training = False
                 break
 
-            model_pd.update_learning_rate()
+        model_pd.update_learning_rate()
 

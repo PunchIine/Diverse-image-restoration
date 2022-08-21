@@ -3,6 +3,9 @@ from .base_model import BaseModel
 from . import network, base_function, external_function
 from util import task, MS_L1loss
 import itertools
+from torchvision import transforms
+
+toPIL = transforms.ToPILImage()
 
 
 class Pluralistic(BaseModel):
@@ -166,6 +169,17 @@ class Pluralistic(BaseModel):
             self.img_rec.append(img_rec)
             self.img_g.append(img_g)
         self.img_out = (1-self.mask) * self.img_g[-1].detach() + self.mask * self.img_truth
+        # pic = toPIL(self.img_out.chunk(chunks=4)[-1].view(3, 256, 256))
+        # pic.save('out.jpg')
+
+        # pic = toPIL(self.mask.chunk(chunks=4)[-1].view(3, 256, 256))
+        # pic.save('mask.jpg')
+
+        # pic = toPIL(self.img_truth.chunk(chunks=4)[-1].view(3, 256, 256))
+        # pic.save('truth.jpg')
+
+        # pic = toPIL(self.img_g[-1].chunk(chunks=4)[-1].view(3, 256, 256))
+        # pic.save('img_g.jpg')
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator"""

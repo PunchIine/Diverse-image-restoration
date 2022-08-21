@@ -349,7 +349,7 @@ class Auto_Attn(nn.Module):
             out : self attention value + input feature
             attention: B X N X N (N is Width*Height)
         """
-        print(x.shape)
+        # print(x.shape)
         B, C, W, H = x.size()
         proj_query = self.query_conv(x).view(B, -1, W * H)  # B X (N)X C
         proj_key = proj_query  # B X C x (N)
@@ -411,6 +411,7 @@ class HardSPDNorm(nn.Module):
         self.dsample_m = nn.MaxPool2d(kernel_size=2, stride=2)
 
     def forward(self, F_in, img_p, mask, n_ds, n):
+        mask = mask.clone()
         # downsample
         for i in range(n_ds):
             img_p = self.dsample_p(img_p)
@@ -459,6 +460,7 @@ class SoftSPDNorm(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, F_in, img_p, mask, n_ds):
+        mask = mask.clone()
         # downsample
         for i in range(n_ds):
             img_p = self.dsample_p(img_p)
@@ -480,7 +482,7 @@ class SoftSPDNorm(nn.Module):
         f_in = F_in * gamma_sd
         F_soft = f_in + beta_sd
 
-        return F_soft
+        return F_soft, mask
 
 
 class ResBlockSPDNorm(nn.Module):
@@ -506,12 +508,12 @@ class ResBlockSPDNorm(nn.Module):
         out_h = self.relu(out_h)
         out_h = self.Conv2(out_h)
         # the SoftSPDNorm
-        out_s = self.SoftSPDNorm(F_in, img_p, mask, self.n_ds)
+        out_s, mask = self.SoftSPDNorm(F_in, img_p, mask, self.n_ds)
         out_s = self.relu(out_s)
         out_s = self.Conv3(out_s)
         # output
         out = out_h + out_s
 
-        return out
+        return out, mask
 
 

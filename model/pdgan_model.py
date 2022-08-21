@@ -4,7 +4,9 @@ from . import network, base_function, external_function
 from util import task, MS_L1loss
 import numpy as np
 import itertools
+from torchvision import transforms
 
+toPIL = transforms.ToPILImage()
 
 class pdgan(BaseModel):
     """This class implements the pluralistic image completion, for 256*256 resolution image inpainting"""
@@ -30,7 +32,7 @@ class pdgan(BaseModel):
         self.loss_names = ['app_g', 'ad_g', 'img_d']
         self.visual_names = ['img_m', 'img_c', 'img_truth', 'img_out', 'img_g']
         self.model_names = ['G_pd', 'D_pd']
-        self.distribution = []
+        self.features = []
 
         # define the inpainting model
         self.net_G_pd = network.define_pd_g(ngf=32, z_nc=128, img_f=128, L=0, layers=5, output_scale=opt.output_scale,
@@ -72,16 +74,33 @@ class pdgan(BaseModel):
         self.scale_img = task.scale_pyramid(self.img_truth, self.opt.output_scale)
         self.scale_mask = task.scale_pyramid(self.mask, self.opt.output_scale)
 
-    def forward(self, img_p, mask, img_truth):
-        self.mask = mask
-        self.img_truth = img_truth
+    def forward(self, img_p):
+        # self.mask = mask
+        # self.img_truth = img_truth
+        # pic = toPIL(self.img_truth.chunk(chunks=4)[-1].view(3, 256, 256))
+        # pic.save('truth1.jpg')
+        # pic = toPIL(self.mask.chunk(chunks=4)[-1].view(3, 256, 256))
+        # pic.save('mask1.jpg')
         z = torch.Tensor(np.random.normal(0, 1, (self.batchSize, 128, 8, 8)))
-        results, attn = self.net_G_pd(z, self.mask, img_p)
+        results, attn, features = self.net_G_pd(z, self.mask, img_p)
+        self.features = features
         self.img_g = []
         for result in results:
             img_g = result
             self.img_g.append(img_g)
         self.img_out = (1-self.mask) * self.img_g[-1].detach() + self.mask * self.img_truth
+
+        # pic = toPIL(self.img_out.chunk(chunks=4)[-1].view(3, 256, 256))
+        # pic.save('out.jpg')
+
+        # pic = toPIL(self.mask.chunk(chunks=4)[-1].view(3, 256, 256))
+        # pic.save('mask.jpg')
+
+        # pic = toPIL(self.img_truth.chunk(chunks=4)[-1].view(3, 256, 256))
+        # pic.save('truth.jpg')
+
+        # pic = toPIL(self.img_g[-1].chunk(chunks=4)[-1].view(3, 256, 256))
+        # pic.save('img_g.jpg')
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator"""
@@ -89,7 +108,7 @@ class pdgan(BaseModel):
         D_real = netD(real)
         D_real_loss = self.GANloss(D_real, True, True)
         # fake
-        print("fake" + str(fake.shape))
+        # print("fake" + str(fake.shape))
         D_fake = netD(fake.detach())
         D_fake_loss = self.GANloss(D_fake, False, True)
         # loss for discriminator
@@ -117,21 +136,16 @@ class pdgan(BaseModel):
 
     def backward_G(self):
         """Calculate training loss for the generator"""
-
         # generator adversarial loss
         base_function._freeze(self.net_D_pd)
-
         # g loss fake
         D_fake = self.net_D_pd(self.img_g[-1])
         self.loss_ad_g = self.GANloss(D_fake, True, False) * self.opt.lambda_g
-
-        loss_app_g = 0
         # calculate l1 loss ofr multi-scale outputs
+        loss_app_g = 0
         for i, (img_fake_i, img_real_i, mask_i) in enumerate(zip(self.img_g, self.scale_img, self.scale_mask)):
             loss_app_g += self.Ms_L1loss(img_fake_i, img_real_i)
         self.loss_app_g = loss_app_g * self.opt.lambda_rec
-
-        # if one path during the training, just calculate the loss for generation path
 
         total_loss = 0
 
@@ -142,10 +156,10 @@ class pdgan(BaseModel):
         total_loss.backward()
 
 
-    def pd_optimize_parameters(self, img_p, mask, img_truth):
+    def pd_optimize_parameters(self, img_p):
         """update network weights"""
         # compute the image completion results
-        self.forward(img_p, mask, img_truth)
+        self.forward(img_p)
         # optimize the discrinimator network parameters
         self.optimizer_D.zero_grad()
         self.backward_D()
