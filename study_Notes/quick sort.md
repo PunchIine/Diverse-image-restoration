@@ -6,8 +6,6 @@
 
 **模板：**
 
-
-
 ```c++
 void quick_sort(int q[], int l, int r)
 {
@@ -27,8 +25,6 @@ void quick_sort(int q[], int l, int r)
 }
 ```
 
-
-
 **快排思路概述**：
 
 1. 有一数组$q$，现对其排序，数组左端点为$l$，右端点为$r$
@@ -38,26 +34,24 @@ void quick_sort(int q[], int l, int r)
 3. 将$q$分为$>=x$和$<=x$的两个子数组，下面记子数组为$p$
 
 4. 定义两个指针$i$，$j$，分别以该子数组的$l$和$r$为起点相向进行遍历，分别在$p[i]>x$和$p[j]<x$的值后停下，二者都停下后交换$p[i]$与$p[j]$的位置
-
-    + $i$的含义：该子数组中，在$i$之前的所有元素都$<=x$, 即$q[l, i-1]<=x$
-
-    + $j$的含义：该子数组中，在$j$之后的所有元素都$>=x$, 即$q[j+1, r]>=x$
-
-    + 即二指针停下时满足$p[i]>x$，$p[j]<x$，此时我们交换二者，如此循环至$i>=j$
-
-    + 注意最后一次循环中if语句不会被执行，则在最后一次循环中[. . .j x x i . . .]   ,  [. . . i(j) . . . ] ...
-
-        此时只能保证$i >= j$和$q[l..i-1] <= x$，$ q[i] >= x$和$q[j+1..r] >= x$，$q[j] <= x$，由$q[l..i-1] <=x$，$i >= j(i-1 >= j-1)$ 和 $q[j] <= x$ 可以得到 $q[l..j] <= x$，又因为$q[j+1..r] >= x$，所以，$q[l..j] <= x,q[j+1..r] >= x$
+   
+   + $i$的含义：该子数组中，在$i$之前的所有元素都$<=x$, 即$q[l, i-1]<=x$
+   
+   + $j$的含义：该子数组中，在$j$之后的所有元素都$>=x$, 即$q[j+1, r]>=x$
+   
+   + 即二指针停下时满足$p[i]>x$，$p[j]<x$，此时我们交换二者，如此循环至$i>=j$
+   
+   + 注意最后一次循环中if语句不会被执行，则在最后一次循环中[. . .j x x i . . .]   ,  [. . . i(j) . . . ] ...
+     
+       此时只能保证$i >= j$和$q[l..i-1] <= x$，$ q[i] >= x$和$q[j+1..r] >= x$，$q[j] <= x$，由$q[l..i-1] <=x$，$i >= j(i-1 >= j-1)$ 和 $q[j] <= x$ 可以得到 $q[l..j] <= x$，又因为$q[j+1..r] >= x$，所以，$q[l..j] <= x,q[j+1..r] >= x$
 
 5. 由此我们以$j$作划分，递归处理子问题
 
 6. 注意$q[i]<x$，$q[j]>x$切忌改为$<=，>=$否则会遇到边界问题，这里不细说
 
-
-
 代码实现：
 
-c++
+**c++**
 
 ```c++
 #include <iostream>
@@ -71,7 +65,7 @@ int q[N];
 void q_sort(int l, int r)
 {
         if(l == r) return;
-        
+
         int x = q[(l+r) >> 1];
         int i = l-1, j = r+1;
         while(i < j)
@@ -95,9 +89,15 @@ int main()
 }
 ```
 
-python
+**Python**
 
-它真的好优雅，我哭死
+简析：
+
++ left列表中所有的元素都要小于privot， right中所有元素都大于privot
+
++ 将等于privot的元素都存于mid列表中，则非常简单粗暴且优雅地将left与right列表进行递归再非常简单粗暴且优雅地与mid列表相加，即可完成排序。
+
+>  它真的好优雅，我哭死😭😭😭
 
 ```python
 n =int(input())
@@ -105,14 +105,13 @@ nums =list(map(int, input().split()))
 
 def quick_sort(nums):
 
-    if(len(nums) <=1): return nums;
+    if(len(nums) <= 1): return nums;
 
-    privot =nums[len(nums)//2]
+    privot =nums[len(nums) // 2]
     left =[x for x in nums if x < privot]
     mid =[x for x in nums if x == privot]
     right =[x for x in nums if x> privot]
-    return quick_sort(left) +mid + quick_sort(right)
-
+    return quick_sort(left) + mid + quick_sort(right)
 
 if __name__ =="__main__":
     nums =quick_sort(nums)
@@ -120,3 +119,84 @@ if __name__ =="__main__":
 
 ```
 
+**Go**
+
+```go
+package main
+
+import "fmt"
+
+func main(){
+    var n int
+    fmt.Scanf("%d", &n)
+    q := make([]int, n)
+    for i:=0; i < n; i++ {
+        fmt.Scanf("%d", &q[i])
+    }
+    quickSort(q, 0, n-1)
+    for i := 0; i < n; i++ {
+        fmt.Printf("%d ", q[i])
+    } 
+    return
+}
+
+func quickSort(q []int, l, r int){
+    if l == r{
+        return
+    }
+    x := q[(l+r) >> 1]
+    i, j := l-1, r+1
+    for i < j {
+        for { // do while 语法
+            i++ // 交换后指针要移动，避免没必要的交换
+            if q[i] >= x {
+                break
+            }
+        }
+        for {
+            j--
+            if q[j] <= x {
+                break
+            }
+        }
+        if i < j { // swap 两个元素
+            q[i], q[j] = q[j], q[i]
+        }
+    }
+    quickSort(q, l, j)
+    quickSort(q, j+1, r)
+}
+```
+
+**Javascript**
+
+```javascript
+var buf = ''
+
+process.stdin.on('readable', function () {
+    const chunk = process.stdin.read();
+    if (chunk) buf += chunk.toString(); else return ;
+});
+
+const getArr = str =>  str.split('\n')[1].split(' ')
+    .filter(i => i !== '')
+    .map(i => parseInt(i));
+
+function quickSort(q, l, r) {
+    if (l >= r) return;
+    let i = l - 1, j = r + 1, x = q[l + r >> 1];
+    while (i < j) {
+        while (q[++i] < x);
+        while (q[--j] > x);
+        if (i < j) [q[i],q[j]] = [q[j], q[i]];
+    }
+    quickSort(q, l, j); quickSort(q, j + 1, r);
+}
+
+process.stdin.on('end', function () {
+    const arr = getArr(buf)
+    quickSort(arr, 0, arr.length - 1)
+    arr.forEach(item => process.stdout.write(item + ' '))
+});
+
+```
