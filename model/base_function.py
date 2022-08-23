@@ -405,12 +405,13 @@ class HardSPDNorm(nn.Module):
         self.n = n
         self.k = k
         self.F_in_nc = F_in_nc
-        self.gamma_conv = nn.Conv2d(p_input_nc, F_in_nc, kernel_size=1, stride=1)
-        self.beta_conv = nn.Conv2d(p_input_nc, F_in_nc, kernel_size=1, stride=1)
+        self.gamma_conv = nn.Conv2d(p_input_nc, self.F_in_nc, kernel_size=1, stride=1)
+        self.beta_conv = nn.Conv2d(p_input_nc, self.F_in_nc, kernel_size=1, stride=1)
         self.dsample_p = nn.AvgPool2d(kernel_size=2, stride=2)
         self.dsample_m = nn.MaxPool2d(kernel_size=2, stride=2)
 
     def forward(self, F_in, img_p, mask, n_ds, n):
+        print(self.F_in_nc)
         mask = mask.clone()
         # downsample
         for i in range(n_ds):
@@ -442,6 +443,8 @@ class HardSPDNorm(nn.Module):
 
 
         F_in = (F_in - torch.mean(F_in)) / torch.sqrt(torch.var(F_in) ** 2 + 1e-5)
+        print(gamma_hd.shape)
+        print(F_in.shape)
         f_in = F_in * gamma_hd
         F_hard = f_in + beta_hd
 

@@ -86,6 +86,7 @@ class pdgan(BaseModel):
         # pic.save('mask1.jpg')
         z_A = torch.Tensor(np.random.normal(0, 1, (self.batchSize, 128, 8, 8)))
         z_B = torch.Tensor(np.random.normal(0, 1, (self.batchSize, 128, 8, 8)))
+        # print(z_A is z_B)
         results, attn, features = self.net_G_pd(torch.cat([z_A, z_B], dim=0),
                                                 torch.cat([self.mask, self.mask], dim=0),
                                                 torch.cat([img_p, img_p], dim=0))
@@ -98,8 +99,9 @@ class pdgan(BaseModel):
             self.img_g_B.append(img_g_B)
         self.img_out_A = (1-self.mask) * self.img_g_A[-1].detach() + self.mask * self.img_truth
         self.img_out_B = (1-self.mask) * self.img_g_B[-1].detach() + self.mask * self.img_truth
-
-        # pic = toPIL(self.img_out.chunk(chunks=4)[-1].view(3, 256, 256))
+        # print(self.img_out_A is self.img_out_B)
+        # pic = toPIL
+        # (self.img_out.chunk(chunks=4)[-1].view(3, 256, 256))
         # pic.save('out.jpg')
 
         # pic = toPIL(self.mask.chunk(chunks=4)[-1].view(3, 256, 256))
