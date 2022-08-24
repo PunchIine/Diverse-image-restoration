@@ -77,6 +77,30 @@ class pdgan(BaseModel):
         self.scale_img = task.scale_pyramid(self.img_truth, self.opt.output_scale)
         self.scale_mask = task.scale_pyramid(self.mask, self.opt.output_scale)
 
+    def test(self, img_p, num):
+        """Forward function used in test time"""
+        # save the groundtruth and masked image
+        if num == 0:
+            self.save_results(self.img_truth, data_name='truth')
+        # self.save_results(self.img_m, data_name='mask')
+
+        # encoder process
+        # distribution, f = self.net_E(self.img_m)
+        # q_distribution = torch.distributions.Normal(distribution[-1][0], distribution[-1][1])
+        # scale_mask = task.scale_img(self.mask, size=[f[2].size(2), f[2].size(3)])
+
+        # decoder process
+        # print(self.opt)
+        for i in range(self.opt.nsampling):
+            z = torch.Tensor(np.random.normal(0, 1, (self.batchSize, 128, 8, 8)))
+            self.img_g, _, _ = self.net_G_pd(z, self.mask, img_p)
+            self.img_out = (1 - self.mask) * self.img_g[-1].detach() + self.mask * self.img_m
+            self.score = self.net_D_pd(self.img_out)
+            self.save_results(self.img_out, num, data_name='out')
+            num += 1
+
+        return num
+
     def forward(self, img_p):
         # self.mask = mask
         # self.img_truth = img_truth

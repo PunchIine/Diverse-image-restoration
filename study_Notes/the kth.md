@@ -41,22 +41,4 @@ int main() {
 
     return 0;
 }
-
 ```
-
-**Python**
-
-```python
-n, k = map(int, input().split())
-q = list(map(int, input().split()))
-
-
-def quick_sort(l, r, k):
-    i, j = l-1, r+1
-    left = []
-    mid = []
-    right = []
-    
-```
-
-

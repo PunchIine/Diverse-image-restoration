@@ -1,7 +1,7 @@
-from .base_options import BaseOptions
+from .base_pd_options import BaseOptions
 
 
-class TestOptions(BaseOptions):
+class PD_TestOptions(BaseOptions):
     def initialize(self,  parser):
         parser = BaseOptions.initialize(self, parser)
 
@@ -13,5 +13,6 @@ class TestOptions(BaseOptions):
         parser.add_argument('--save_number', type=int, default=10, help='choice # reasonable results based on the discriminator score')
 
         self.isTrain = False
+        self.pd_isTrain = False
 
         return parser

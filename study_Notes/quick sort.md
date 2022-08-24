@@ -1,12 +1,12 @@
 快速排序是一种**分治算法**，分治算法一般分为三步：
 
-1. 分成几个子问题
+1. 分成子问题
 2. 递归处理子问题
 3. 子问题合并
 
 **模板：**
 
-```c++
+```cpp
 void quick_sort(int q[], int l, int r)
 {
     //递归的终止情况
@@ -53,7 +53,7 @@ void quick_sort(int q[], int l, int r)
 
 **c++**
 
-```c++
+```cpp
 #include <iostream>
 
 using namespace std;
@@ -110,13 +110,12 @@ def quick_sort(nums):
     privot =nums[len(nums) // 2]
     left =[x for x in nums if x < privot]
     mid =[x for x in nums if x == privot]
-    right =[x for x in nums if x> privot]
+    right =[x for x in nums if x > privot]
     return quick_sort(left) + mid + quick_sort(right)
 
 if __name__ =="__main__":
     nums =quick_sort(nums)
     print(" ".join(list(map(str, nums))))
-
 ```
 
 **Go**
@@ -171,32 +170,33 @@ func quickSort(q []int, l, r int){
 **Javascript**
 
 ```javascript
-var buf = ''
-
-process.stdin.on('readable', function () {
-    const chunk = process.stdin.read();
-    if (chunk) buf += chunk.toString(); else return ;
+let buf = ''
+process.stdin.on('readable',function(){
+  var chunk = process.stdin.read();
+  if (chunk) buf += chunk.toString(); 
 });
 
-const getArr = str =>  str.split('\n')[1].split(' ')
-    .filter(i => i !== '')
-    .map(i => parseInt(i));
+let sum = 0;
+let array = [];
+process.stdin.on('end',function(){
+    let split = buf.split('\n');
+    sum = parseInt(split[0]);
+    array = split[1].split(' ').map(item=>+item)
+    quickSort(array,0,sum-1)
+    console.log(array.join(' '))
 
-function quickSort(q, l, r) {
-    if (l >= r) return;
-    let i = l - 1, j = r + 1, x = q[l + r >> 1];
-    while (i < j) {
-        while (q[++i] < x);
-        while (q[--j] > x);
-        if (i < j) [q[i],q[j]] = [q[j], q[i]];
+})
+
+function quickSort(ary,l,r){
+    if(l>=r) return;
+    let std = ary[l],i = l -1,j = r +1
+    while(i<j){
+        while(std>ary[++i]);
+        while(std<ary[--j]);
+        if(i<j)[ary[i],ary[j]] = [ary[j],ary[i]]
     }
-    quickSort(q, l, j); quickSort(q, j + 1, r);
+    quickSort(ary,l,j)
+    quickSort(ary,j+1,r)
+
 }
-
-process.stdin.on('end', function () {
-    const arr = getArr(buf)
-    quickSort(arr, 0, arr.length - 1)
-    arr.forEach(item => process.stdout.write(item + ' '))
-});
-
 ```

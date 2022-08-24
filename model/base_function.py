@@ -410,8 +410,8 @@ class HardSPDNorm(nn.Module):
         self.dsample_p = nn.AvgPool2d(kernel_size=2, stride=2)
         self.dsample_m = nn.MaxPool2d(kernel_size=2, stride=2)
 
-    def forward(self, F_in, img_p, mask, n_ds, n):
-        print(self.F_in_nc)
+    def forward(self, F_in, img_p, mask, n_ds):
+        # print(self.F_in_nc)
         mask = mask.clone()
         # downsample
         for i in range(n_ds):
@@ -434,17 +434,13 @@ class HardSPDNorm(nn.Module):
 
         gamma_hp = self.gamma_conv(img_p)
         beta_hp = self.beta_conv(img_p)
-        if n == 1:
-            gamma_hd = gamma_hp.detach() * D_h
-            beta_hd = beta_hp.detach() * D_h
-        else:
-            gamma_hd = gamma_hp * D_h
-            beta_hd = beta_hp * D_h
+        gamma_hd = gamma_hp * D_h
+        beta_hd = beta_hp * D_h
 
 
         F_in = (F_in - torch.mean(F_in)) / torch.sqrt(torch.var(F_in) ** 2 + 1e-5)
-        print(gamma_hd.shape)
-        print(F_in.shape)
+        # print(gamma_hd.shape)
+        # print(F_in.shape)
         f_in = F_in * gamma_hd
         F_hard = f_in + beta_hd
 
@@ -491,8 +487,7 @@ class SoftSPDNorm(nn.Module):
 class ResBlockSPDNorm(nn.Module):
     def __init__(self, F_in_nc, p_input_nc, n_ds, n, k):
         super(ResBlockSPDNorm, self).__init__()
-        self.HardSPDNorm_1 = HardSPDNorm(n, k, p_input_nc, F_in_nc)
-        self.HardSPDNorm_2 = HardSPDNorm(n, k, p_input_nc, F_in_nc)
+        self.HardSPDNorm = HardSPDNorm(n, k, p_input_nc, F_in_nc)
         self.SoftSPDNorm = SoftSPDNorm(p_input_nc, F_in_nc)
 
         self.relu = nn.ReLU()
@@ -504,10 +499,10 @@ class ResBlockSPDNorm(nn.Module):
 
     def forward(self, F_in, img_p, mask):
         # the HardSPDNorm
-        out_h1 = self.HardSPDNorm_1(F_in, img_p, mask, self.n_ds, 1)
+        out_h1 = self.HardSPDNorm(F_in, img_p, mask, self.n_ds)
         out_h1 = self.relu(out_h1)
         out_h1 = self.Conv1(out_h1)
-        out_h = self.HardSPDNorm_2(out_h1, img_p, mask, self.n_ds, 2)
+        out_h = self.HardSPDNorm(out_h1, img_p, mask, self.n_ds)
         out_h = self.relu(out_h)
         out_h = self.Conv2(out_h)
         # the SoftSPDNorm
