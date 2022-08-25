@@ -7,14 +7,14 @@ if __name__ == "__main__":
     # get testing options
     opt_feed = test_options.TestOptions().parse()
     # creat a dataset
-    opt_feed.nsampling = 5
+    opt_feed.nsampling = 2
     dataset = data_loader.dataloader(opt_feed)
     dataset_size = len(dataset) * opt_feed.batchSize
     # create models
     model_pic = create_model(opt_feed)
     model_pic.eval()
     opt = PD_test_options.PD_TestOptions().parse()
-    opt.nsampling = 2
+    opt.nsampling = 1
     # creat a dataset
     dataset = data_loader.dataloader(opt)
     dataset_size = len(dataset) * opt.batchSize
