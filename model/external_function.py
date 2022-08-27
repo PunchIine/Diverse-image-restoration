@@ -323,7 +323,7 @@ class GroupNorm(nn.Module):
         return x * self.weight + self.bias
 
 
-class FullAttention(th.nn.Module):
+class FullAttention(nn.Module):
     """
     Layer implements my version of the self-attention module
     it is mostly same as self attention, but generalizes to
@@ -342,9 +342,9 @@ class FullAttention(th.nn.Module):
     """
 
     def __init__(self, in_channels, out_channels,
-                 activation=None, kernel_size=(1, 1), transpose_conv=False,
+                 activation=None, kernel_size=(3, 3), transpose_conv=False,
                  use_spectral_norm=True, use_batch_norm=True,
-                 squeeze_factor=8, stride=1, padding=0, bias=True):
+                 squeeze_factor=8, stride=1, padding=1, bias=True):
         """ constructor for the layer """
 
         from torch.nn import Conv2d, Parameter, \
@@ -355,7 +355,7 @@ class FullAttention(th.nn.Module):
 
         # state of the layer
         self.activation = activation
-        self.gamma = Parameter(th.zeros(1))
+        self.gamma = Parameter(torch.zeros(1))
 
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -480,7 +480,7 @@ class FullAttention(th.nn.Module):
             m_batchsize, self.squeezed_channels, -1)  # B x C x (N)
 
         # calculate the attention maps
-        energy = th.bmm(proj_query, proj_key)  # energy
+        energy = torch.bmm(proj_query, proj_key)  # energy
         attention = self.softmax(energy)  # attention (B x (N) x (N))
 
         # create the value projection
@@ -488,7 +488,7 @@ class FullAttention(th.nn.Module):
             m_batchsize, self.out_channels, -1)  # B X C X N
 
         # calculate the output
-        out = th.bmm(proj_value, attention.permute(0, 2, 1))
+        out = torch.bmm(proj_value, attention.permute(0, 2, 1))
 
         # calculate the residual output
         res_out = self.residual_conv(x)

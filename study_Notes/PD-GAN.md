@@ -85,10 +85,6 @@ $F_i$在原文中指经过预训练模型VGG-19网络中的第$i$层提取出的
 
 > 除了Perceptual Diversity Loss外，PD-GAN还遵循了SPAD（[Semantic Image Synthesis with Spatially-Adaptive Normalization](https://arxiv.org/abs/1903.07291)）利用了reconstruction loss（Perceptual  losses for real-time style transfer and super-resolution），feature  matching loss（High-resolution image synthesis and semantic manipulation with conditional gans）和hinge adversarial loss来优化网络。
 
-
-
-
-
 关于修复图像多样性的问题：
 
 encoder-decoder的方法由于是将蒙版图像进行encode后得到的隐向量，因此，若在训练是是由整张图像激励网络优化，那么当测试时，同一张蒙版图像得到的隐向量是确定的，即生成的修复图像也是单一确定的。而PICNet的方法则是仅由蒙版图像部分激励网络优化，且通过平行路径学习mask部分的特征，因此mask区域对应的隐向量是随机的，由于生成路径的隐空间学习了重建路径得到的mask部分特征，因此能较稳定的生成具有多样性的修复图像。

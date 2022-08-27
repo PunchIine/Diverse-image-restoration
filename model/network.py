@@ -1,7 +1,7 @@
 import math
 
 from .base_function import *
-from .external_function import SpectralNorm
+from .external_function import SpectralNorm, FullAttention
 import torch.nn.functional as F
 
 
@@ -413,7 +413,8 @@ class PD_Generator(nn.Module):
             if i == 1 and use_attn:
                 # simam = SimAM()
                 # setattr(self, 'simam' + str(i), simam)
-                attn = Auto_Attn(ngf*mult, None)
+                # attn = Auto_Attn(ngf*mult, None)
+                attn = FullAttention(ngf*mult, ngf*mult)
                 setattr(self, 'attn' + str(i), attn)
 
     def forward(self, z, mask=None, img_p=None):
@@ -449,7 +450,8 @@ class PD_Generator(nn.Module):
                 # model = getattr(self, 'simam' + str(i))
                 # out = model(out)
                 model = getattr(self, 'attn' + str(i))
-                out, attn = model(out, mask=mask)
+                # out, attn = model(out, mask=mask)
+                out, attn = model(out)
                 # print("attn" + str(i) + str(out.shape))
             if i > self.layers - self.output_scale - 1:
                 model = getattr(self, 'out' + str(i))
@@ -493,7 +495,8 @@ class PD_Discriminator(nn.Module):
             if i == 2 and use_attn:
                 # simam = SimAM()
                 # setattr(self, 'simam' + str(i), simam)
-                attn = Auto_Attn(ndf * mult_prev, norm_layer)
+                # attn = Auto_Attn(ndf * mult_prev, norm_layer)
+                attn = FullAttention(ndf * mult_prev, ndf * mult_prev)
                 setattr(self, 'attn' + str(i), attn)
             block = ResBlock(ndf * mult_prev, ndf * mult, ndf * mult_prev, norm_layer, nonlinearity, 'down', use_spect, use_coord)
             setattr(self, 'encoder' + str(i), block)
@@ -509,7 +512,8 @@ class PD_Discriminator(nn.Module):
                 # simam = getattr(self, 'simam' + str(i))
                 # out = simam(out)
                 attn = getattr(self, 'attn' + str(i))
-                out, attention = attn(out)
+                # out, attention = attn(out)
+                out, attn = attn(out)
                 # print("attn" + str(i) + str(out.shape))
             model = getattr(self, 'encoder' + str(i))
             out = model(out)
