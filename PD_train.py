@@ -10,14 +10,14 @@ if __name__ == "__main__":
     # get testing options
     opt_feed = test_options.TestOptions().parse()
     # creat a dataset
-    opt_feed.batchSize = 3
+    opt_feed.batchSize = 2
     dataset = data_loader.dataloader(opt_feed)
     dataset_size = len(dataset) * opt_feed.batchSize
     # create models
     model_pic = create_model(opt_feed)
     model_pic.eval()
     opt = PD_train_options.PD_trainOptions().parse()
-    opt.batchSize = 3
+    opt.batchSize = 2
     opt.model = "pdgan"
     #    opt.continue_train = True
     model_pd = create_model(opt)

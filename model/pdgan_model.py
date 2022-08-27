@@ -1,7 +1,7 @@
 import torch
 from .base_model import BaseModel
 from . import network, base_function, external_function
-from .external_function import PD_Loss, TV_Loss
+from .external_function import PD_Loss, TV_Loss, PerceptualLoss, Diversityloss
 from util import task, MS_L1loss
 import numpy as np
 import itertools
@@ -49,6 +49,8 @@ class pdgan(BaseModel):
             self.Ms_L1loss = MS_L1loss.MS_SSIM_L1_LOSS()
             self.PD_loss = PD_Loss()
             self.TV_loss = TV_Loss()
+            self.Perceptual_loss = PerceptualLoss(weights=[1.0, 2.0, 4.0, 8.0, 16.0])
+            self.Diversity_loss = Diversityloss()
             # define the optimizer
             self.optimizer_G = torch.optim.Adam(itertools.chain(filter(lambda p: p.requires_grad, self.net_G_pd.parameters())), lr=opt.lr, betas=(0.0, 0.999))
             self.optimizer_D = torch.optim.Adam(itertools.chain(filter(lambda p: p.requires_grad, self.net_D_pd.parameters())), lr=opt.lr, betas=(0.0, 0.999))
@@ -197,11 +199,15 @@ class pdgan(BaseModel):
         self.loss_app_g = self.loss_app_g_A + self.loss_app_g_B
 
         # Perceptual Diversity Loss
-        loss_pd = 0
-        for feature in self.features:
-            feature_A, feature_B = torch.split(feature, self.batchSize, dim=0)
-            loss_pd += self.PD_loss(feature_A, feature_B)
-        self.loss_pd = 1 / (loss_pd + 1e-5)
+        # loss_pd = 0
+        # for feature in self.features:
+        #     feature_A, feature_B = torch.split(feature, self.batchSize, dim=0)
+        #     loss_pd += self.PD_loss(feature_A, feature_B)
+        # self.loss_pd = 1 / (loss_pd + 1e-5)
+        self.loss_pd = 1 / self.Perceptual_loss(self.img_g_A[-1], self.img_g_B[-1])
+
+        # diversity loss
+        # self.loss_diver = 1 / self.Diversity_loss(self.img_g_A[-1], self.img_g_B[-1])
 
         # TV loss
         loss_tv_A = 0

@@ -16,6 +16,8 @@
 
 <img src="https://user-images.githubusercontent.com/93063038/182975922-077e502a-1530-46d4-ac53-8d66d1e82d63.png" title="" alt="image" data-align="center">
 
+![image](https://user-images.githubusercontent.com/93063038/187030029-74471f88-b1cb-4a1d-a3e9-74ab3e57fe97.png)
+
 <img src="https://user-images.githubusercontent.com/93063038/183291853-57379dae-6f63-41ff-b32d-43a800ae6308.png" title="" alt="image" data-align="center">
 
 <img src="https://user-images.githubusercontent.com/93063038/183291886-6555bbd2-f24a-45df-9a1e-368982eeea57.png" title="" alt="image" data-align="center">
@@ -49,8 +51,8 @@
 
 ![](/home/lazy/.config/marktext/images/2022-08-12-22-36-35-image.png)
 
-增加循环一致性损失
+使用PD-GAN的网络结构（使用SPDNorm）
 
-SPDNorm
+<img src="https://user-images.githubusercontent.com/93063038/187014085-1bdb98a0-62ac-413d-be18-b753e10924f0.png" title="" alt="image" data-align="center">
 
-![image](https://user-images.githubusercontent.com/93063038/187014085-1bdb98a0-62ac-413d-be18-b753e10924f0.png)
+<img src="https://user-images.githubusercontent.com/93063038/187024583-637b8583-9220-4d51-8bdf-dd4682ff858b.png" title="" alt="image" data-align="center">
