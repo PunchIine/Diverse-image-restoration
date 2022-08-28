@@ -130,9 +130,13 @@ def spectral_norm(module, use_spect=True):
         return module
 
 
-def coord_conv(input_nc, output_nc, use_spect=False, use_coord=False, with_r=False, **kwargs):
+def coord_conv(input_nc, output_nc, use_spect=False, use_coord=False, with_r=False, use_gated=False, sample_type='None', **kwargs):
     """use coord convolution layer to add position information"""
-    if use_coord:
+    if use_gated and sample_type == 'up':
+        return SNGatedDeConv2dWithActivation(input_nc, output_nc, **kwargs)
+    elif use_gated and sample_type == 'down':
+        return  SNGatedConv2dWithActivation(input_nc, output_nc, **kwargs)
+    elif use_coord:
         return CoordConv(input_nc, output_nc, with_r, use_spect, **kwargs)
     else:
         return spectral_norm(nn.Conv2d(input_nc, output_nc, **kwargs), use_spect)
@@ -201,7 +205,7 @@ class ResBlock(nn.Module):
     """
 
     def __init__(self, input_nc, output_nc, hidden_nc=None, norm_layer=nn.BatchNorm2d, nonlinearity=nn.LeakyReLU(),
-                 sample_type='none', use_spect=False, use_coord=False):
+                 sample_type='none', use_spect=False, use_coord=False, use_gated=False):
         super(ResBlock, self).__init__()
 
         hidden_nc = output_nc if hidden_nc is None else hidden_nc
@@ -219,9 +223,9 @@ class ResBlock(nn.Module):
         kwargs = {'kernel_size': 3, 'stride': 1, 'padding': 1}
         kwargs_short = {'kernel_size': 1, 'stride': 1, 'padding': 0}
 
-        self.conv1 = coord_conv(input_nc, hidden_nc, use_spect, use_coord, **kwargs)
-        self.conv2 = coord_conv(hidden_nc, output_nc, use_spect, use_coord, **kwargs)
-        self.bypass = coord_conv(input_nc, output_nc, use_spect, use_coord, **kwargs_short)
+        self.conv1 = coord_conv(input_nc, hidden_nc, use_spect, use_coord, use_gated=use_gated, sample_type=sample_type, **kwargs)
+        self.conv2 = coord_conv(hidden_nc, output_nc, use_spect, use_coord, use_gated=use_gated, sample_type=sample_type, **kwargs)
+        self.bypass = coord_conv(input_nc, output_nc, use_spect, use_coord, use_gated=use_gated, sample_type=sample_type, **kwargs_short)
 
         if type(norm_layer) == type(None):
             self.model = nn.Sequential(nonlinearity, self.conv1, nonlinearity, self.conv2, )
@@ -246,7 +250,7 @@ class ResBlockEncoderOptimized(nn.Module):
     """
 
     def __init__(self, input_nc, output_nc, norm_layer=nn.BatchNorm2d, nonlinearity=nn.LeakyReLU(), use_spect=False,
-                 use_coord=False):
+                 use_coord=False, use_gated=False):
         super(ResBlockEncoderOptimized, self).__init__()
 
         kwargs = {'kernel_size': 3, 'stride': 1, 'padding': 1}
@@ -515,3 +519,55 @@ class ResBlockSPDNorm(nn.Module):
         return out, mask
 
 
+class SNGatedConv2dWithActivation(nn.Module):
+    """
+    Gated Convolution with spetral normalization
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True, batch_norm=True, activation=torch.nn.LeakyReLU(0.2, inplace=True)):
+        super(SNGatedConv2dWithActivation, self).__init__()
+        self.conv2d = torch.nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
+        self.mask_conv2d = torch.nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
+        self.activation = activation
+        self.batch_norm = batch_norm
+        self.batch_norm2d = torch.nn.BatchNorm2d(out_channels)
+        self.sigmoid = torch.nn.Sigmoid()
+        self.conv2d = torch.nn.utils.spectral_norm(self.conv2d)
+        self.mask_conv2d = torch.nn.utils.spectral_norm(self.mask_conv2d)
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+
+    def gated(self, mask):
+        return self.sigmoid(mask)
+        #return torch.clamp(mask, -1, 1)
+
+    def forward(self, input):
+        x = self.conv2d(input)
+        mask = self.mask_conv2d(input)
+        if self.activation is not None:
+            x = self.activation(x) * self.gated(mask)
+        else:
+            x = x * self.gated(mask)
+        if self.batch_norm:
+            return self.batch_norm2d(x)
+        else:
+            return x
+
+
+class SNGatedDeConv2dWithActivation(torch.nn.Module):
+    """
+    Gated DeConvlution layer with activation (default activation:LeakyReLU)
+    resize + conv
+    Params: same as conv2d
+    Input: The feature from last layer "I"
+    Output:\phi(f(I))*\sigmoid(g(I))
+    """
+    def __init__(self, scale_factor, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True, batch_norm=True, activation=torch.nn.LeakyReLU(0.2, inplace=True)):
+        super(SNGatedDeConv2dWithActivation, self).__init__()
+        self.conv2d = SNGatedConv2dWithActivation(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias, batch_norm, activation)
+        self.scale_factor = scale_factor
+
+    def forward(self, input):
+        #print(input.size())
+        x = F.interpolate(input, scale_factor=2)
+        return self.conv2d(x)

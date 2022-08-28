@@ -50,8 +50,6 @@
 
 ![image](https://user-images.githubusercontent.com/93063038/187074940-061a54d3-133e-46fa-9394-dceab5f9e2f4.png)
 
-
-
 |                     | L1_loss↓   | PSNR↑       | TV↓        | FID↓        |
 | ------------------- | ---------- | ----------- | ---------- | ----------- |
 | Base                | 8.3597     | 23.3455     | 8.7266     | 13.6334     |
@@ -76,3 +74,13 @@ PD-GAN
 ![image](https://user-images.githubusercontent.com/93063038/186679315-e6065ad5-4dbe-4530-b3d3-ed790037ef8d.png)
 
 ![image](https://user-images.githubusercontent.com/93063038/186685136-ba1401c8-9303-49f5-9df6-a540c88aa482.png)
+
+5 结合Attentive Normalization设计一个Attention Layer
+
+6 gated Conv 结合coord Conv
+
+7 minibatch discriminator || multi-stage discriminator || PGGAN
+
+8 hinge loss 变种
+
+9 exponential moving average

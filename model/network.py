@@ -368,7 +368,7 @@ class PD_Generator(nn.Module):
     :param output_scale: Different output scales
     """
     def __init__(self, output_nc=3, ngf=64, z_nc=128, img_f=1024, L=1, layers=6, norm='batch', activation='ReLU',
-                 output_scale=1, k=4, n=2, use_spect=True, use_coord=False, use_attn=True):
+                 output_scale=1, k=4, n=2, use_spect=True, use_coord=False, use_attn=True, use_gated=False):
         super(PD_Generator, self).__init__()
 
         self.layers = layers
@@ -383,11 +383,11 @@ class PD_Generator(nn.Module):
         nonlinearity = get_nonlinearity_layer(activation_type=activation)
         # latent z to feature
         mult = min(2 ** (layers-1), img_f // ngf)
-        self.generator = ResBlock(z_nc, ngf * mult, ngf * mult, None, nonlinearity, 'none', use_spect, use_coord)
+        self.generator = ResBlock(z_nc, ngf * mult, ngf * mult, None, nonlinearity, 'none', use_spect, use_coord, use_gated=use_gated)
 
         # transform
         for i in range(self.L):
-            block = ResBlock(ngf * mult, ngf * mult, ngf * mult, None, nonlinearity, 'none', use_spect, use_coord)
+            block = ResBlock(ngf * mult, ngf * mult, ngf * mult, None, nonlinearity, 'none', use_spect, use_coord, use_gated=use_gated)
             setattr(self, 'generator' + str(i), block)
 
         # decoder part
@@ -398,16 +398,16 @@ class PD_Generator(nn.Module):
             mult = min(2 ** (layers - i - 1), img_f // ngf)
             if i > layers - output_scale:
                 # upconv = ResBlock(ngf * mult_prev + output_nc, ngf * mult, ngf * mult, norm_layer, nonlinearity, 'up', True)
-                upconv = ResBlockDecoder(ngf * mult_prev + output_nc, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord)
+                upconv = ResBlockDecoder(ngf * mult_prev + output_nc, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord, use_gated=use_gated)
             else:
                 # upconv = ResBlock(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, 'up', True)
-                upconv = ResBlockDecoder(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord)
+                upconv = ResBlockDecoder(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord, use_gated=use_gated)
             block_s = ResBlockSPDNorm(ngf * mult, 3, int(math.log2(256 / 2 ** (i + 4))), self.n, self.k)
             setattr(self, 'decoder' + str(i), upconv)
             setattr(self, 'SPDNorm' + str(i), block_s)
             # output part
             if i > layers - output_scale - 1:
-                outconv = Output(ngf * mult, output_nc, 3, None, nonlinearity, use_spect, use_coord)
+                outconv = Output(ngf * mult, output_nc, 3, None, nonlinearity, use_spect, use_coord, use_gated=use_gated)
                 setattr(self, 'out' + str(i), outconv)
             # short+long term attention part
             if i == 1 and use_attn:
@@ -474,7 +474,7 @@ class PD_Discriminator(nn.Module):
     :param activation: activation function 'ReLU, SELU, LeakyReLU, PReLU'
     """
     def __init__(self, input_nc=3, ndf=64, img_f=1024, layers=6, norm='none', activation='LeakyReLU', use_spect=True,
-                 use_coord=False, use_attn=True):
+                 use_coord=False, use_attn=True, use_gated=False):
         super(PD_Discriminator, self).__init__()
 
         self.layers = layers
@@ -485,7 +485,7 @@ class PD_Discriminator(nn.Module):
         self.nonlinearity = nonlinearity
 
         # encoder part
-        self.block0 = ResBlockEncoderOptimized(input_nc, ndf,norm_layer, nonlinearity, use_spect, use_coord)
+        self.block0 = ResBlockEncoderOptimized(input_nc, ndf,norm_layer, nonlinearity, use_spect, use_coord, use_gated=use_gated)
 
         mult = 1
         for i in range(layers - 1):
@@ -498,10 +498,10 @@ class PD_Discriminator(nn.Module):
                 # attn = Auto_Attn(ndf * mult_prev, norm_layer)
                 attn = FullAttention(ndf * mult_prev, ndf * mult_prev)
                 setattr(self, 'attn' + str(i), attn)
-            block = ResBlock(ndf * mult_prev, ndf * mult, ndf * mult_prev, norm_layer, nonlinearity, 'down', use_spect, use_coord)
+            block = ResBlock(ndf * mult_prev, ndf * mult, ndf * mult_prev, norm_layer, nonlinearity, 'down', use_spect, use_coord, use_gated=use_gated)
             setattr(self, 'encoder' + str(i), block)
 
-        self.block1 = ResBlock(ndf * mult, ndf * mult, ndf * mult, norm_layer, nonlinearity, 'none', use_spect, use_coord)
+        self.block1 = ResBlock(ndf * mult, ndf * mult, ndf * mult, norm_layer, nonlinearity, 'none', use_spect, use_coord, use_gated=use_gated)
         self.conv = SpectralNorm(nn.Conv2d(ndf * mult, 1, 3))
 
     def forward(self, x):
