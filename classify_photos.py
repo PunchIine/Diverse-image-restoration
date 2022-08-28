@@ -1,3 +1,5 @@
+import os
+import shutil
 path1 = './images'
 path = './results'
 file_list = os.listdir(path)

@@ -19,7 +19,7 @@ class Pluralistic(BaseModel):
         parser.add_argument('--output_scale', type=int, default=4, help='# of number of the output scale')
         if is_train:
             parser.add_argument('--train_paths', type=str, default='two', help='training strategies with one path or two paths')
-            parser.add_argument('--lambda_rec', type=float, default=20.0, help='weight for image reconstruction loss')
+            parser.add_argument('--lambda_rec', type=float, default=1.0, help='weight for image reconstruction loss')
             parser.add_argument('--lambda_kl', type=float, default=20.0, help='weight for kl divergence loss')
             parser.add_argument('--lambda_g', type=float, default=1.0, help='weight for generation loss')
 
@@ -39,7 +39,7 @@ class Pluralistic(BaseModel):
         self.net_E = network.define_e(ngf=32, z_nc=128, img_f=128, layers=5, norm='none', activation='LeakyReLU',
                                       init_type='orthogonal', gpu_ids=opt.gpu_ids)
         self.net_G = network.define_g(ngf=32, z_nc=128, img_f=128, L=0, layers=5, output_scale=opt.output_scale,
-                                      norm='group', activation='LeakyReLU', init_type='orthogonal', gpu_ids=opt.gpu_ids)
+                                      norm='instance', activation='LeakyReLU', init_type='orthogonal', gpu_ids=opt.gpu_ids)
         # define the discriminator model
         self.net_D = network.define_d(ndf=32, img_f=128, layers=5, model_type='ResDis', init_type='orthogonal', gpu_ids=opt.gpu_ids)
         self.net_D_rec = network.define_d(ndf=32, img_f=128, layers=5, model_type='ResDis', init_type='orthogonal', gpu_ids=opt.gpu_ids)
@@ -93,7 +93,7 @@ class Pluralistic(BaseModel):
         scale_mask = task.scale_img(self.mask, size=[f[2].size(2), f[2].size(3)])
 
         # decoder process
-        for i in range(self.opt.nsmpling):
+        for i in range(self.opt.nsampling):
             z = q_distribution.sample()
             self.img_g, attn = self.net_G(z, f_m=f[-1], f_e=f[2], mask=scale_mask.chunk(3, dim=1)[0])
             self.img_out = (1 - self.mask) * self.img_g[-1].detach() + self.mask * self.img_m
