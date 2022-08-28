@@ -10,6 +10,8 @@
 
 ![image](https://user-images.githubusercontent.com/93063038/183049902-fbe464dd-563b-470e-80fd-22ebc54c2cde.png)
 
+<img src="https://user-images.githubusercontent.com/93063038/187071953-9cf3d142-a6dc-4cd5-b83b-4b13f425e60b.png" title="" alt="image" data-align="center">
+
 ## LOSS
 
 ![image](https://user-images.githubusercontent.com/93063038/182867845-750cf25d-9246-4430-bec5-7f907fee8c88.png)
@@ -19,6 +21,10 @@
 ![image](https://user-images.githubusercontent.com/93063038/183291853-57379dae-6f63-41ff-b32d-43a800ae6308.png)
 
 ![image](https://user-images.githubusercontent.com/93063038/183291886-6555bbd2-f24a-45df-9a1e-368982eeea57.png)
+
+## 
+
+<img src="https://user-images.githubusercontent.com/93063038/187072473-496058a2-dbcf-48ea-bb89-c27891c4f46e.png" title="" alt="image" data-align="center">
 
 ## Attention
 
@@ -30,6 +36,8 @@
 
 ![image](https://user-images.githubusercontent.com/93063038/183228534-7caa249b-bdae-4cfb-9ea7-91cc04c12891.png)
 
+## <img src="https://user-images.githubusercontent.com/93063038/187073902-5dc4ce4d-ebee-474b-93ca-0bff3f78c118.png" title="" alt="image" data-align="center">
+
 ## Group Normalization
 
 ![image](https://user-images.githubusercontent.com/93063038/183290998-5e440e1e-c82b-4569-8c10-ad42ee8873d2.png)
@@ -40,12 +48,16 @@
 
 ![image](https://user-images.githubusercontent.com/93063038/183291747-7bab93ec-0414-410f-a89f-4c5283eaa77c.png)
 
-|     | L1_loss↓ | PSNR↑ | TV↓ | FID↓ |
-| --- | --- | --- | --- | --- |
-| Base | 8.3597 | 23.3455 | 8.7266 | 13.6334 |
-| MS-SSIM-L1 loss | 8.2796 | 23.2113 | **8.3000** | 12.9456 |
-| SimAM Attention | **7.9695** | **23.5854** | 8.4483 | **12.4844** |
-| Group Normalization | 8.1413 | 23.4755 | 8.4518 | 13.6261 |
+![image](https://user-images.githubusercontent.com/93063038/187074940-061a54d3-133e-46fa-9394-dceab5f9e2f4.png)
+
+
+
+|                     | L1_loss↓   | PSNR↑       | TV↓        | FID↓        |
+| ------------------- | ---------- | ----------- | ---------- | ----------- |
+| Base                | 8.3597     | 23.3455     | 8.7266     | 13.6334     |
+| MS-SSIM-L1 loss     | 8.2796     | 23.2113     | **8.3000** | 12.9456     |
+| SimAM Attention     | **7.9695** | **23.5854** | 8.4483     | **12.4844** |
+| Group Normalization | 8.1413     | 23.4755     | 8.4518     | 13.6261     |
 
 PD-GAN
 

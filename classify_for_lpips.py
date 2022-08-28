@@ -14,7 +14,7 @@ for n in sort_folder_number:
         os.makedirs(new_folder_path)
 for i in range(len(file_list)):
     old_file_path = os.path.join(path, file_list[i])
-    if file_list[i].split('_')[1] == 'truth.png':
+    if file_list[i].split('_')[1] == 'truth.png' or file_list[i].split('_')[1] == 'mask.png':
         continue
     fid = file_list[i].split('_')[2]
     if fid[-3:] == 'png':

@@ -12,6 +12,27 @@
 
 ## 读前小问号：
 
-1. 如何通过featrue map实现对语义布局的预测
+1. 如何通过featrue map实现对语义布局的预测(语义布局学习模块具体实现)（semantic layout prediction, and self-sampling regularization）
 2. 作者提出传统的Instance Normalization忽略了不同的位置可能以不同的均值、方差对应语义特征（这种机制往往会在空间上恶化中间特征的学习语义），那么AN又是如何在空间上对featrue map进行归一化的呢
-3. 
+
+## Attentive Normalization
+
+### 1.Sementic Layout Learning Module
+
+假设每个图像由　n　个语义实体组成，特征图中的每一个特征点至少由一个语义实体确认。
+
+作者给出 n 个初始的期望语义实体，并将它们与图像特征点的相关性定义为它们的内积。
+
+表示这些实体的语义是通过反向传播来学习的。
+
+作者根据这些实体的激活状态将输入特征图中的特征点聚合到不同的区域。
+
+此外为了鼓励这些实体接近不同的模式，对这些实体采用了正交正则化，即：
+
+$$
+\mathcal L_o = \lambda_o \Vert WW^T-I \Vert ^ 2 _ {F}
+$$
+
+在作者的实现中，采用具有 n 个过滤器的卷积层作为语义实体。该层将输入特征映射 X 转换为新的特征空间$ f (X) ∈ Rh×w×n$。直观地说，n 越大，可以学习到的高级特征越多样化和丰富。
+
+### 2.Self-sampling Regularization

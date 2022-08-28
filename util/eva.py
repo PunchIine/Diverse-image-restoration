@@ -2,12 +2,10 @@ import numpy as np
 import argparse
 from PIL import Image
 from math import exp
-import sys
 import torch
 import torch.nn.functional as F
 from dataloader.image_folder import make_dataset
 import os
-import glob
 import shutil
 
 parser = argparse.ArgumentParser(description='Evaluation ont the dataset')
@@ -129,7 +127,7 @@ if __name__ == "__main__":
             TV_sample = 1000
             SSIM_sample = 0
             name = gt_paths[index].split('/')[-1].split(".")[0]+"*"
-#            pre_paths = sorted(glob.glob(os.path.join(args.save_path, name)))
+            #            pre_paths = sorted(glob.glob(os.path.join(args.save_path, name)))
             num_image_files = len(pre_paths)
 
             for k in range(num_image_files-1):
