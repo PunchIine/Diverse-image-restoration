@@ -25,9 +25,9 @@ def define_g(output_nc=3, ngf=64, z_nc=512, img_f=512, L=1, layers=5, norm='inst
 
 
 def define_pd_g(output_nc=3, ngf=64, z_nc=512, img_f=512, L=1, layers=5, norm='instance', activation='ReLU', output_scale=1,
-             use_spect=True, use_coord=False, use_attn=True, init_type='orthogonal', gpu_ids=[]):
+             use_spect=True, use_coord=False, use_attn=True, use_gated=False, init_type='orthogonal', gpu_ids=[]):
 
-    net = PD_Generator(output_nc, ngf, z_nc, img_f, L, layers, norm, activation, output_scale, use_spect, use_coord, use_attn)
+    net = PD_Generator(output_nc, ngf, z_nc, img_f, L, layers, norm, activation, output_scale, use_spect, use_coord, use_attn=use_attn, use_gated=use_gated)
 
     return init_net(net, init_type, activation, gpu_ids)
 
@@ -44,10 +44,10 @@ def define_d(input_nc=3, ndf=64, img_f=512, layers=6, norm='none', activation='L
 
 
 def define_pd_d(input_nc=3, ndf=64, img_f=512, layers=6, norm='none', activation='LeakyReLU', use_spect=True, use_coord=False,
-             use_attn=True,  model_type='ResDis', init_type='orthogonal', gpu_ids=[]):
+             use_attn=True, use_gated=False,  model_type='ResDis', init_type='orthogonal', gpu_ids=[]):
 
     if model_type == 'ResDis':
-        net = PD_Discriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord, use_attn)
+        net = PD_Discriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord, use_attn, use_gated=use_gated)
     elif model_type == 'PatchDis':
         net = PatchDiscriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord, use_attn)
 
@@ -397,11 +397,11 @@ class PD_Generator(nn.Module):
             mult_prev = mult  # 4
             mult = min(2 ** (layers - i - 1), img_f // ngf)
             if i > layers - output_scale:
-                # upconv = ResBlock(ngf * mult_prev + output_nc, ngf * mult, ngf * mult, norm_layer, nonlinearity, 'up', True)
-                upconv = ResBlockDecoder(ngf * mult_prev + output_nc, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord, use_gated=use_gated)
+                upconv = ResBlock(ngf * mult_prev + output_nc, ngf * mult, ngf * mult, norm_layer, nonlinearity, 'up', True, use_gated=use_gated)
+                # upconv = ResBlockDecoder(ngf * mult_prev + output_nc, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord)
             else:
-                # upconv = ResBlock(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, 'up', True)
-                upconv = ResBlockDecoder(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord, use_gated=use_gated)
+                upconv = ResBlock(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, 'up', True, use_gated=use_gated)
+                # upconv = ResBlockDecoder(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord)
             block_s = ResBlockSPDNorm(ngf * mult, 3, int(math.log2(256 / 2 ** (i + 4))), self.n, self.k)
             setattr(self, 'decoder' + str(i), upconv)
             setattr(self, 'SPDNorm' + str(i), block_s)
@@ -485,7 +485,7 @@ class PD_Discriminator(nn.Module):
         self.nonlinearity = nonlinearity
 
         # encoder part
-        self.block0 = ResBlockEncoderOptimized(input_nc, ndf,norm_layer, nonlinearity, use_spect, use_coord, use_gated=use_gated)
+        self.block0 = ResBlockEncoderOptimized(input_nc, ndf, norm_layer, nonlinearity, use_spect, use_coord, use_gated=use_gated)
 
         mult = 1
         for i in range(layers - 1):

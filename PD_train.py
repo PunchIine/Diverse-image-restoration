@@ -19,6 +19,8 @@ if __name__ == "__main__":
     opt = PD_train_options.PD_trainOptions().parse()
     opt.batchSize = 2
     opt.model = "pdgan"
+    opt.use_gated = False
+    opt.use_coord = False
     #    opt.continue_train = True
     model_pd = create_model(opt)
     model_pd.eval()

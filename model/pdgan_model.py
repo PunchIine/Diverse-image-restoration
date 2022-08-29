@@ -19,7 +19,7 @@ class pdgan(BaseModel):
         """Add new options and rewrite default values for existing options"""
         parser.add_argument('--output_scale', type=int, default=4, help='# of number of the output scale')
         if pd_is_train:
-            parser.add_argument('--lambda_rec', type=float, default=10.0, help='weight for image reconstruction loss')
+            parser.add_argument('--lambda_rec', type=float, default=1.0, help='weight for image reconstruction loss')
             parser.add_argument('--lambda_g', type=float, default=1.0, help='weight for generation loss')
 
         return parser
@@ -37,9 +37,9 @@ class pdgan(BaseModel):
 
         # define the inpainting model
         self.net_G_pd = network.define_pd_g(ngf=32, z_nc=128, img_f=128, L=0, layers=5, output_scale=opt.output_scale,
-                                            norm='instance', activation='LeakyReLU', init_type='orthogonal', gpu_ids=opt.gpu_ids)
+                                            norm='instance', activation='LeakyReLU', init_type='orthogonal', gpu_ids=opt.gpu_ids, use_gated=opt.use_gated)
         # define the discriminator model
-        self.net_D_pd = network.define_pd_d(ndf=32, img_f=128, layers=5, model_type='ResDis', init_type='orthogonal', gpu_ids=opt.gpu_ids)
+        self.net_D_pd = network.define_pd_d(ndf=32, img_f=128, layers=5, model_type='ResDis', init_type='orthogonal', gpu_ids=opt.gpu_ids, use_gated=opt.use_gated)
 
         if self.pd_isTrain:
             # define the loss functions
@@ -125,13 +125,13 @@ class pdgan(BaseModel):
             self.img_g_B.append(img_g_B)
         self.img_out_A = (1-self.mask) * self.img_g_A[-1].detach() + self.mask * self.img_truth
         self.img_out_B = (1-self.mask) * self.img_g_B[-1].detach() + self.mask * self.img_truth
-        print(self.img_out_A is self.img_out_B)
+        # print(self.img_out_A is self.img_out_B)
         pic = toPIL(self.img_out_A.chunk(chunks=4)[-1].view(3, 256, 256))
         pic.save('out.jpg')
 
         pic = toPIL(self.mask.chunk(chunks=4)[-1].view(3, 256, 256))
         pic.save('mask.jpg')
-        print(self.mask.chunk(chunks=4)[-1].view(3, 256, 256))
+        # print(self.mask.chunk(chunks=4)[-1].view(3, 256, 256))
 
         pic = toPIL(self.img_truth.chunk(chunks=4)[-1].view(3, 256, 256))
         pic.save('truth.jpg')
