@@ -14,7 +14,7 @@ class PD_trainOptions(BaseOptions):
         # learning rate and loss weight
         parser.add_argument('--lr_policy', type=str, default='lambda', help='learning rate policy[lambda|step|plateau]')
         parser.add_argument('--lr', type=float, default=1e-4, help='initial learning rate for adam')
-        parser.add_argument('--gan_mode', type=str, default='lsgan', choices=['wgangp', 'hinge', 'lsgan', 'wgandiv'])
+        parser.add_argument('--gan_mode', type=str, default='hinge', choices=['wgangp', 'hinge', 'lsgan', 'wgandiv'])
 
         # display the results
         parser.add_argument('--display_freq', type=int, default=100, help='frequency of showing training results on screen')

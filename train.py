@@ -8,6 +8,7 @@ from util.visualizer import Visualizer
 if __name__ == '__main__':
     # get training options
     opt = TrainOptions().parse()
+    opt.continue_train = True
     # create a dataset
     dataset = dataloader(opt)
     dataset_size = len(dataset) * opt.batchSize

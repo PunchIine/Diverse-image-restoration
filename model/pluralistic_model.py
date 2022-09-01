@@ -19,7 +19,7 @@ class Pluralistic(BaseModel):
         parser.add_argument('--output_scale', type=int, default=4, help='# of number of the output scale')
         if is_train:
             parser.add_argument('--train_paths', type=str, default='two', help='training strategies with one path or two paths')
-            parser.add_argument('--lambda_rec', type=float, default=1.0, help='weight for image reconstruction loss')
+            parser.add_argument('--lambda_rec', type=float, default=20.0, help='weight for image reconstruction loss')
             parser.add_argument('--lambda_kl', type=float, default=20.0, help='weight for kl divergence loss')
             parser.add_argument('--lambda_g', type=float, default=1.0, help='weight for generation loss')
 

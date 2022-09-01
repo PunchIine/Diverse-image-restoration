@@ -27,5 +27,3 @@ void merge_sort(int q[], int l, int r)
     for(k = 0, i = l; i <= r; k++, i++) q[i] = tmp[k];
 }
 ```
-
-

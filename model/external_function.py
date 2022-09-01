@@ -640,7 +640,7 @@ class PerceptualLoss(nn.Module):
     https://github.com/dxyang/StyleTransfer/blob/master/utils.py
     """
 
-    def __init__(self, weights=[1.0, 1.0, 1.0, 1.0, 1.0]):
+    def __init__(self, weights=[1.0 / 2, 1.0 / 4, 1.0 / 8, 1.0 / 16, 1.0]):
         super(PerceptualLoss, self).__init__()
         self.add_module("vgg", VGG16().cuda())
         self.criterion = torch.nn.L1Loss()

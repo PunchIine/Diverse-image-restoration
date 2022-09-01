@@ -5,6 +5,7 @@ import functools
 from torch.optim import lr_scheduler
 import torch.nn.functional as F
 from .external_function import SpectralNorm, GroupNorm
+import numpy as np
 
 
 ######################################################################################
@@ -130,9 +131,11 @@ def spectral_norm(module, use_spect=True):
         return module
 
 
-def coord_conv(input_nc, output_nc, use_spect=False, use_coord=False, with_r=False, **kwargs):
+def coord_conv(input_nc, output_nc, use_spect=False, use_coord=False, with_r=False, use_gated=False, **kwargs):
     """use coord convolution layer to add position information"""
-    if use_coord:
+    if use_gated:
+        return Gated_Conv(input_nc, output_nc, **kwargs)
+    elif use_coord:
         return CoordConv(input_nc, output_nc, with_r, use_spect, **kwargs)
     else:
         return spectral_norm(nn.Conv2d(input_nc, output_nc, **kwargs), use_spect)
@@ -201,10 +204,13 @@ class ResBlock(nn.Module):
     """
 
     def __init__(self, input_nc, output_nc, hidden_nc=None, norm_layer=nn.BatchNorm2d, nonlinearity=nn.LeakyReLU(),
-                 sample_type='none', use_spect=False, use_coord=False):
+                 sample_type='none', use_spect=False, use_coord=False, use_gated=False):
         super(ResBlock, self).__init__()
 
         hidden_nc = output_nc if hidden_nc is None else hidden_nc
+        self.in_nc = input_nc
+        self.hi_nc = hidden_nc
+        self.ou_nc = output_nc
         self.sample = True
         if sample_type == 'none':
             self.sample = False
@@ -219,9 +225,9 @@ class ResBlock(nn.Module):
         kwargs = {'kernel_size': 3, 'stride': 1, 'padding': 1}
         kwargs_short = {'kernel_size': 1, 'stride': 1, 'padding': 0}
 
-        self.conv1 = coord_conv(input_nc, hidden_nc, use_spect, use_coord, **kwargs)
-        self.conv2 = coord_conv(hidden_nc, output_nc, use_spect, use_coord, **kwargs)
-        self.bypass = coord_conv(input_nc, output_nc, use_spect, use_coord, **kwargs_short)
+        self.conv1 = coord_conv(input_nc, hidden_nc, use_spect, use_coord, use_gated=use_gated, **kwargs)
+        self.conv2 = coord_conv(hidden_nc, output_nc, use_spect, use_coord, use_gated=use_gated, **kwargs)
+        self.bypass = coord_conv(input_nc, output_nc, use_spect, use_coord, use_gated=use_gated, **kwargs_short)
 
         if type(norm_layer) == type(None):
             self.model = nn.Sequential(nonlinearity, self.conv1, nonlinearity, self.conv2, )
@@ -246,15 +252,15 @@ class ResBlockEncoderOptimized(nn.Module):
     """
 
     def __init__(self, input_nc, output_nc, norm_layer=nn.BatchNorm2d, nonlinearity=nn.LeakyReLU(), use_spect=False,
-                 use_coord=False):
+                 use_coord=False, use_gated=False):
         super(ResBlockEncoderOptimized, self).__init__()
 
         kwargs = {'kernel_size': 3, 'stride': 1, 'padding': 1}
         kwargs_short = {'kernel_size': 1, 'stride': 1, 'padding': 0}
 
-        self.conv1 = coord_conv(input_nc, output_nc, use_spect, use_coord, **kwargs)
-        self.conv2 = coord_conv(output_nc, output_nc, use_spect, use_coord, **kwargs)
-        self.bypass = coord_conv(input_nc, output_nc, use_spect, use_coord, **kwargs_short)
+        self.conv1 = coord_conv(input_nc, output_nc, use_spect, use_coord, use_gated, **kwargs)
+        self.conv2 = coord_conv(output_nc, output_nc, use_spect, use_coord, use_gated, **kwargs)
+        self.bypass = coord_conv(input_nc, output_nc, use_spect, use_coord, use_gated, **kwargs_short)
 
         if type(norm_layer) == type(None):
             self.model = nn.Sequential(self.conv1, nonlinearity, self.conv2, nn.AvgPool2d(kernel_size=2, stride=2))
@@ -307,12 +313,12 @@ class Output(nn.Module):
     """
 
     def __init__(self, input_nc, output_nc, kernel_size=3, norm_layer=nn.BatchNorm2d, nonlinearity=nn.LeakyReLU(),
-                 use_spect=False, use_coord=False):
+                 use_spect=False, use_coord=False, use_gated=False):
         super(Output, self).__init__()
 
         kwargs = {'kernel_size': kernel_size, 'padding': 0, 'bias': True}
 
-        self.conv1 = coord_conv(input_nc, output_nc, use_spect, use_coord, **kwargs)
+        self.conv1 = coord_conv(input_nc, output_nc, use_spect, use_coord, use_gated=use_gated, **kwargs)
 
         if type(norm_layer) == type(None):
             self.model = nn.Sequential(nonlinearity, nn.ReflectionPad2d(int(kernel_size / 2)), self.conv1, nn.Tanh())
@@ -405,10 +411,11 @@ class HardSPDNorm(nn.Module):
         self.n = n
         self.k = k
         self.F_in_nc = F_in_nc
-        self.gamma_conv = nn.Conv2d(p_input_nc, self.F_in_nc, kernel_size=1, stride=1)
-        self.beta_conv = nn.Conv2d(p_input_nc, self.F_in_nc, kernel_size=1, stride=1)
+        self.gamma_conv = Gated_Conv(2 * p_input_nc, self.F_in_nc, kernel_size=3, stride=1, padding=1)
+        self.beta_conv = Gated_Conv(2 * p_input_nc, self.F_in_nc, kernel_size=3, stride=1, padding=1)
         self.dsample_p = nn.AvgPool2d(kernel_size=2, stride=2)
         self.dsample_m = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.innorm = nn.InstanceNorm2d(self.F_in_nc, affine=False)
 
     def forward(self, F_in, img_p, mask, n_ds):
         # print(self.F_in_nc)
@@ -417,6 +424,7 @@ class HardSPDNorm(nn.Module):
         for i in range(n_ds):
             img_p = self.dsample_p(img_p)
             mask = self.dsample_m(mask)
+        img_p = torch.cat([img_p, mask], dim=1)
         mask, _, _ = torch.chunk(mask, dim=1, chunks=3)
         # D_h
         kernel = torch.ones(mask.shape[1], mask.shape[1], 3, 3).cuda()
@@ -437,12 +445,10 @@ class HardSPDNorm(nn.Module):
         gamma_hd = gamma_hp * D_h
         beta_hd = beta_hp * D_h
 
-
-        F_in = (F_in - torch.mean(F_in)) / torch.sqrt(torch.var(F_in) ** 2 + 1e-5)
+        F_in_norm = self.innorm(F_in)
         # print(gamma_hd.shape)
         # print(F_in.shape)
-        f_in = F_in * gamma_hd
-        F_hard = f_in + beta_hd
+        F_hard = F_in_norm * (gamma_hd + 1) + beta_hd
 
         return F_hard
 
@@ -450,13 +456,14 @@ class HardSPDNorm(nn.Module):
 class SoftSPDNorm(nn.Module):
     def __init__(self, p_input_nc, F_in_nc):
         super(SoftSPDNorm, self).__init__()
-        self.gamma_conv = nn.Conv2d(p_input_nc, F_in_nc, kernel_size=1, stride=1)
-        self.beta_conv = nn.Conv2d(p_input_nc, F_in_nc, kernel_size=1, stride=1)
-        self.p_conv = nn.Conv2d(3, F_in_nc, stride=1, kernel_size=1)
-        self.f_conv = nn.Conv2d(2 * F_in_nc, 1, kernel_size=1, stride=1)
+        self.gamma_conv = Gated_Conv(2 * p_input_nc, F_in_nc, kernel_size=3, stride=1, padding=1)
+        self.beta_conv = Gated_Conv(2 * p_input_nc, F_in_nc, kernel_size=3, stride=1, padding=1)
+        self.p_conv = Gated_Conv(6, F_in_nc, stride=1, kernel_size=1)
+        self.f_conv = Gated_Conv(2 * F_in_nc, 1, kernel_size=1, stride=1)
         self.dsample_p = nn.AvgPool2d(kernel_size=2, stride=2)
         self.dsample_m = nn.MaxPool2d(kernel_size=2, stride=2)
         self.sigmoid = nn.Sigmoid()
+        self.innorm = nn.InstanceNorm2d(F_in_nc, affine=False)
 
     def forward(self, F_in, img_p, mask, n_ds):
         mask = mask.clone()
@@ -464,11 +471,12 @@ class SoftSPDNorm(nn.Module):
         for i in range(n_ds):
             img_p = self.dsample_p(img_p)
             mask = self.dsample_m(mask)
+        img_p = torch.cat([img_p, mask], dim=1)
         mask, _, _ = torch.chunk(mask, dim=1, chunks=3)
-        F_in = (F_in - torch.mean(F_in)) / torch.sqrt(torch.var(F_in) ** 2 + 1e-5)
+        F_in_norm = self.innorm(F_in)
 
         F_p = self.p_conv(img_p)
-        F_mix = torch.cat([F_p, F_in], dim=1)
+        F_mix = torch.cat([F_p, F_in_norm], dim=1)
         F_conv = self.f_conv(F_mix)
         D_s = self.sigmoid(F_conv * (1 - mask) + mask)
 
@@ -478,7 +486,7 @@ class SoftSPDNorm(nn.Module):
         gamma_sd = gamma_sp * D_s
         beta_sd = beta_sp * D_s
 
-        f_in = F_in * gamma_sd
+        f_in = F_in_norm * gamma_sd
         F_soft = f_in + beta_sd
 
         return F_soft, mask
@@ -491,22 +499,26 @@ class ResBlockSPDNorm(nn.Module):
         self.SoftSPDNorm = SoftSPDNorm(p_input_nc, F_in_nc)
 
         self.relu = nn.ReLU()
-        self.Conv1 = nn.Conv2d(F_in_nc, F_in_nc, stride=1, padding=1, kernel_size=3)
-        self.Conv2 = nn.Conv2d(F_in_nc, F_in_nc, stride=1, padding=1, kernel_size=3)
-        self.Conv3 = nn.Conv2d(F_in_nc, F_in_nc, stride=1, padding=1, kernel_size=3)
+        self.Conv1 = Gated_Conv(F_in_nc, F_in_nc, stride=1, padding=1, kernel_size=3)
+        self.Conv2 = Gated_Conv(F_in_nc, F_in_nc, stride=1, padding=1, kernel_size=3)
+        self.Conv3 = Gated_Conv(F_in_nc, F_in_nc, stride=1, padding=1, kernel_size=3)
 
         self.n_ds = n_ds
 
     def forward(self, F_in, img_p, mask):
         # the HardSPDNorm
-        out_h1 = self.HardSPDNorm(F_in, img_p, mask, self.n_ds)
+        img_p_re = F.interpolate(
+            img_p, size=F_in.size()[2:], mode="nearest"
+        )
+        mask_re = F.interpolate(mask, size=F_in.size()[2:], mode="nearest")
+        out_h1 = self.HardSPDNorm(F_in, img_p_re, mask_re, self.n_ds)
         out_h1 = self.relu(out_h1)
         out_h1 = self.Conv1(out_h1)
-        out_h = self.HardSPDNorm(out_h1, img_p, mask, self.n_ds)
+        out_h = self.HardSPDNorm(out_h1, img_p_re, mask_re, self.n_ds)
         out_h = self.relu(out_h)
         out_h = self.Conv2(out_h)
         # the SoftSPDNorm
-        out_s, mask = self.SoftSPDNorm(F_in, img_p, mask, self.n_ds)
+        out_s, mask = self.SoftSPDNorm(F_in, img_p_re, mask_re, self.n_ds)
         out_s = self.relu(out_s)
         out_s = self.Conv3(out_s)
         # output
@@ -514,4 +526,378 @@ class ResBlockSPDNorm(nn.Module):
 
         return out, mask
 
+
+class Gated_Conv(nn.Module):
+    """
+    Gated Convolution with spetral normalization
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True, batch_norm=False, activation=torch.nn.LeakyReLU(0.2, inplace=True)):
+        super(Gated_Conv, self).__init__()
+        self.conv2d = torch.nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
+        self.mask_conv2d = torch.nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
+        self.activation = activation
+        self.batch_norm = batch_norm
+        self.batch_norm2d = torch.nn.BatchNorm2d(out_channels)
+        self.sigmoid = torch.nn.Sigmoid()
+        self.conv2d = torch.nn.utils.spectral_norm(self.conv2d)
+        self.mask_conv2d = torch.nn.utils.spectral_norm(self.mask_conv2d)
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+
+    def gated(self, mask):
+        return self.sigmoid(mask)
+        #return torch.clamp(mask, -1, 1)
+
+    def forward(self, input):
+        x = self.conv2d(input)
+        mask = self.mask_conv2d(input)
+        if self.activation is not None:
+            x = self.activation(x) * self.gated(mask)
+        else:
+            x = x * self.gated(mask)
+        if self.batch_norm:
+            return self.batch_norm2d(x)
+        else:
+            return x
+
+
+class SPDNormResnetBlock(nn.Module):
+    def __init__(self, fin, fout, mask_number, mask_ks):
+        super().__init__()
+        nhidden = 128
+        fmiddle = min(fin, fout)
+        lable_nc = 3
+        # create conv layers
+        self.conv_0 = nn.Conv2d(fin, fmiddle, kernel_size=3, padding=1)
+        self.conv_1 = nn.Conv2d(fmiddle, fout, kernel_size=3, padding=1)
+        self.conv_s = nn.Conv2d(fin, fout, kernel_size=1, bias=False)
+        self.learned_shortcut = True
+        # apply spectral norm if specified
+        self.conv_0 = spectral_norm(self.conv_0)
+        self.conv_1 = spectral_norm(self.conv_1)
+        if self.learned_shortcut:
+            self.conv_s = spectral_norm(self.conv_s)
+        # define normalization layers
+        self.norm_0 = SPDNorm(fin, norm_type="position")
+        self.norm_1 = SPDNorm(fmiddle, norm_type="position")
+        self.norm_s = SPDNorm(fin, norm_type="position")
+        # define the mask weight
+        self.v = nn.Parameter(torch.zeros(1))
+        self.activeweight = nn.Sigmoid()
+        # define the feature and mask process conv
+        self.mask_number = mask_number
+        self.mask_ks = mask_ks
+        pw_mask = int(np.ceil((self.mask_ks - 1.0) / 2))
+        self.mask_conv = MaskGet(1, 1, kernel_size=self.mask_ks, padding=pw_mask)
+        self.conv_to_f = nn.Sequential(
+            Gated_Conv(lable_nc * 2, nhidden, kernel_size=3, padding=1),
+            nn.InstanceNorm2d(nhidden),
+            nn.ReLU(),
+            Gated_Conv(nhidden, fin, kernel_size=3, padding=1),
+        )
+        self.attention = nn.Sequential(
+            nn.Conv2d(fin * 2, fin, kernel_size=3, padding=1), nn.Sigmoid()
+        )
+
+    # the semantic feature prior_f form pretrained encoder
+    def forward(self, x, prior_image, mask):
+        """
+
+        Args:
+            x: input feature
+            prior_image: the output of PCConv
+            mask: mask
+
+
+        """
+        # prepare the forward
+        b, c, h, w = x.size()
+        prior_image_resize = F.interpolate(
+            prior_image, size=x.size()[2:], mode="nearest"
+        )
+        mask_resize = F.interpolate(mask, size=x.size()[2:], mode="nearest")
+        prior_image_resize = torch.cat([prior_image_resize, mask_resize], dim=1)
+        mask_resize, _, _ = torch.chunk(mask_resize, dim=1, chunks=3)
+        # Mask Original and Res path  res weight/ value attention
+        prior_feature = self.conv_to_f(prior_image_resize)
+        soft_map = self.attention(torch.cat([prior_feature, x], 1))
+        # print(soft_map.shape)
+        # print(mask_resize.shape)
+        soft_map = (1 - mask_resize) * soft_map + mask_resize
+        # Mask weight for next process
+        mask_pre = mask_resize
+        hard_map = 0.0
+        for i in range(self.mask_number):
+            mask_out = self.mask_conv(mask_pre)
+            mask_generate = (mask_out - mask_pre) * (
+                1 / (torch.exp(torch.tensor(i + 1).cuda()))
+            )
+            mask_pre = mask_out
+            hard_map = hard_map + mask_generate
+        hard_map_inner = (1 - mask_out) * (1 / (torch.exp(torch.tensor(i + 1).cuda())))
+        hard_map = hard_map + mask_resize + hard_map_inner
+        soft_out = self.conv_s(self.norm_s(x, prior_image_resize, soft_map))
+        hard_out = self.conv_0(self.actvn(self.norm_0(x, prior_image_resize, hard_map)))
+        hard_out = self.conv_1(
+            self.actvn(self.norm_1(hard_out, prior_image_resize, hard_map))
+        )
+        # Res add
+        out = soft_out + hard_out
+        return out
+
+    def actvn(self, x):
+        return F.leaky_relu(x, 2e-1)
+
+
+def PositionalNorm2d(x, epsilon=1e-5):
+    # x: B*C*W*H normalize in C dim
+    mean = x.mean(dim=1, keepdim=True)
+    std = x.var(dim=1, keepdim=True).add(epsilon).sqrt()
+    output = (x - mean) / std
+    return output
+
+
+class SPDNorm(nn.Module):
+    def __init__(self, norm_channel, norm_type="batch"):
+        super().__init__()
+        label_nc = 3
+        param_free_norm_type = norm_type
+        ks = 3
+        if param_free_norm_type == "instance":
+            self.param_free_norm = nn.InstanceNorm2d(norm_channel, affine=False)
+        elif param_free_norm_type == "batch":
+            self.param_free_norm = nn.BatchNorm2d(norm_channel, affine=False)
+        elif param_free_norm_type == "position":
+            self.param_free_norm = PositionalNorm2d
+        else:
+            raise ValueError(
+                "%s is not a recognized param-free norm type in SPADE"
+                % param_free_norm_type
+            )
+
+        # The dimension of the intermediate embedding space. Yes, hardcoded.
+        pw = ks // 2
+        nhidden = 128
+        self.mlp_activate = nn.Sequential(
+            Gated_Conv(label_nc * 2, nhidden, kernel_size=ks, padding=pw), nn.ReLU()
+        )
+        self.mlp_gamma = nn.Conv2d(nhidden, norm_channel, kernel_size=ks, padding=pw)
+        self.mlp_beta = nn.Conv2d(nhidden, norm_channel, kernel_size=ks, padding=pw)
+
+    def forward(self, x, prior_f, weight):
+        normalized = self.param_free_norm(x)
+        # Part 2. produce scaling and bias conditioned on condition feature
+        actv = self.mlp_activate(prior_f)
+        gamma = self.mlp_gamma(actv) * weight
+        beta = self.mlp_beta(actv) * weight
+        # apply scale and bias
+        out = normalized * (1 + gamma) + beta
+        return out
+
+
+class MaskGet(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        dilation=1,
+        groups=1,
+        bias=True,
+    ):
+        super().__init__()
+        self.mask_conv = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            groups,
+            False,
+        )
+
+        torch.nn.init.constant_(self.mask_conv.weight, 1.0)
+
+    def forward(self, input):
+        # depart from partial conv
+        # hole region should sed to 0
+        with torch.no_grad():
+            output_mask = self.mask_conv(input)
+        no_update_holes = output_mask == 0
+        new_mask = torch.ones_like(output_mask)
+        new_mask = new_mask.masked_fill_(no_update_holes.bool(), 0.0)
+        return new_mask
+
+# class SPDNormResnetBlock(nn.Module):
+#     def __init__(self, fin, fout, mask_number, mask_ks):
+#         super().__init__()
+#         nhidden = 128
+#         fmiddle = min(fin, fout)
+#         lable_nc = 3
+#         # create conv layers
+#         self.conv_0 = nn.Conv2d(fin, fmiddle, kernel_size=3, padding=1)
+#         self.conv_1 = nn.Conv2d(fmiddle, fout, kernel_size=3, padding=1)
+#         self.conv_s = nn.Conv2d(fin, fout, kernel_size=1, bias=False)
+#         self.learned_shortcut = True
+#         # apply spectral norm if specified
+#         self.conv_0 = spectral_norm(self.conv_0)
+#         self.conv_1 = spectral_norm(self.conv_1)
+#         if self.learned_shortcut:
+#             self.conv_s = spectral_norm(self.conv_s)
+#         # define normalization layers
+#         self.norm_0 = SPDNorm(fin, norm_type="position")
+#         self.norm_1 = SPDNorm(fmiddle, norm_type="position")
+#         self.norm_s = SPDNorm(fin, norm_type="position")
+#         # define the mask weight
+#         self.v = nn.Parameter(torch.zeros(1))
+#         self.activeweight = nn.Sigmoid()
+#         # define the feature and mask process conv
+#         self.mask_number = mask_number
+#         self.mask_ks = mask_ks
+#         pw_mask = int(np.ceil((self.mask_ks - 1.0) / 2))
+#         self.mask_conv = MaskGet(1, 1, kernel_size=self.mask_ks, padding=pw_mask)
+#         self.conv_to_f = nn.Sequential(
+#             nn.Conv2d(lable_nc, nhidden, kernel_size=3, padding=1),
+#             nn.InstanceNorm2d(nhidden),
+#             nn.ReLU(),
+#             nn.Conv2d(nhidden, fin, kernel_size=3, padding=1),
+#         )
+#         self.attention = nn.Sequential(
+#             nn.Conv2d(fin * 2, fin, kernel_size=3, padding=1), nn.Sigmoid()
+#         )
+
+    # # the semantic feature prior_f form pretrained encoder
+    # def forward(self, x, prior_image, mask):
+    #     """
+
+        # Args:
+        #     x: input feature
+        #     prior_image: the output of PCConv
+        #     mask: mask
+
+
+        # """
+        # # prepare the forward
+        # b, c, h, w = x.size()
+        # prior_image_resize = F.interpolate(
+        #     prior_image, size=x.size()[2:], mode="nearest"
+        # )
+        # mask_resize = F.interpolate(mask, size=x.size()[2:], mode="nearest")
+        # mask_resize, _, _ = torch.chunk(mask_resize, dim=1, chunks=3)
+        # # Mask Original and Res path  res weight/ value attention
+        # prior_feature = self.conv_to_f(prior_image_resize)
+        # soft_map = self.attention(torch.cat([prior_feature, x], 1))
+        # # print(soft_map.shape)
+        # # print(mask_resize.shape)
+        # soft_map = (1 - mask_resize) * soft_map + mask_resize
+        # # Mask weight for next process
+        # mask_pre = mask_resize
+        # hard_map = 0.0
+        # for i in range(self.mask_number):
+        #     mask_out = self.mask_conv(mask_pre)
+        #     mask_generate = (mask_out - mask_pre) * (
+        #             1 / (torch.exp(torch.tensor(i + 1).cuda()))
+        #     )
+        #     mask_pre = mask_out
+        #     hard_map = hard_map + mask_generate
+        # hard_map_inner = (1 - mask_out) * (1 / (torch.exp(torch.tensor(i + 1).cuda())))
+        # hard_map = hard_map + mask_resize + hard_map_inner
+        # soft_out = self.conv_s(self.norm_s(x, prior_image_resize, soft_map))
+        # hard_out = self.conv_0(self.actvn(self.norm_0(x, prior_image_resize, hard_map)))
+        # hard_out = self.conv_1(
+        #     self.actvn(self.norm_1(hard_out, prior_image_resize, hard_map))
+        # )
+        # # Res add
+        # out = soft_out + hard_out
+        # return out
+
+    # def actvn(self, x):
+    #     return F.leaky_relu(x, 2e-1)
+
+
+# def PositionalNorm2d(x, epsilon=1e-5):
+#     # x: B*C*W*H normalize in C dim
+#     mean = x.mean(dim=1, keepdim=True)
+#     std = x.var(dim=1, keepdim=True).add(epsilon).sqrt()
+#     output = (x - mean) / std
+#     return output
+
+
+# class SPDNorm(nn.Module):
+#     def __init__(self, norm_channel, norm_type="batch"):
+#         super().__init__()
+#         label_nc = 3
+#         param_free_norm_type = norm_type
+#         ks = 3
+#         if param_free_norm_type == "instance":
+#             self.param_free_norm = nn.InstanceNorm2d(norm_channel, affine=False)
+#         elif param_free_norm_type == "batch":
+#             self.param_free_norm = nn.BatchNorm2d(norm_channel, affine=False)
+#         elif param_free_norm_type == "position":
+#             self.param_free_norm = PositionalNorm2d
+#         else:
+#             raise ValueError(
+#                 "%s is not a recognized param-free norm type in SPADE"
+#                 % param_free_norm_type
+#             )
+
+        # # The dimension of the intermediate embedding space. Yes, hardcoded.
+        # pw = ks // 2
+        # nhidden = 128
+        # self.mlp_activate = nn.Sequential(
+        #     nn.Conv2d(label_nc, nhidden, kernel_size=ks, padding=pw), nn.ReLU()
+        # )
+        # self.mlp_gamma = nn.Conv2d(nhidden, norm_channel, kernel_size=ks, padding=pw)
+        # self.mlp_beta = nn.Conv2d(nhidden, norm_channel, kernel_size=ks, padding=pw)
+
+    # def forward(self, x, prior_f, weight):
+    #     normalized = self.param_free_norm(x)
+    #     # Part 2. produce scaling and bias conditioned on condition feature
+    #     actv = self.mlp_activate(prior_f)
+    #     gamma = self.mlp_gamma(actv) * weight
+    #     beta = self.mlp_beta(actv) * weight
+    #     # apply scale and bias
+    #     out = normalized * (1 + gamma) + beta
+    #     return out
+
+
+# class MaskGet(nn.Module):
+#     def __init__(
+#             self,
+#             in_channels,
+#             out_channels,
+#             kernel_size,
+#             stride=1,
+#             padding=0,
+#             dilation=1,
+#             groups=1,
+#             bias=True,
+#     ):
+#         super().__init__()
+#         self.mask_conv = nn.Conv2d(
+#             in_channels,
+#             out_channels,
+#             kernel_size,
+#             stride,
+#             padding,
+#             dilation,
+#             groups,
+#             False,
+#         )
+
+        # torch.nn.init.constant_(self.mask_conv.weight, 1.0)
+
+    # def forward(self, input):
+    #     # depart from partial conv
+    #     # hole region should sed to 0
+    #     with torch.no_grad():
+    #         output_mask = self.mask_conv(input)
+    #     no_update_holes = output_mask == 0
+    #     new_mask = torch.ones_like(output_mask)
+    #     new_mask = new_mask.masked_fill_(no_update_holes.bool(), 0.0)
+    #     return new_mask
 

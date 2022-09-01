@@ -6,6 +6,7 @@ from util import task, MS_L1loss
 import numpy as np
 import itertools
 from torchvision import transforms
+from functools import reduce
 
 toPIL = transforms.ToPILImage()
 
@@ -19,8 +20,9 @@ class pdgan(BaseModel):
         """Add new options and rewrite default values for existing options"""
         parser.add_argument('--output_scale', type=int, default=4, help='# of number of the output scale')
         if pd_is_train:
-            parser.add_argument('--lambda_rec', type=float, default=10.0, help='weight for image reconstruction loss')
+            parser.add_argument('--lambda_rec', type=float, default=0.2, help='weight for image reconstruction loss')
             parser.add_argument('--lambda_g', type=float, default=1.0, help='weight for generation loss')
+            parser.add_argument('--lambda_p', type=float, default=10.0, help='weight')
 
         return parser
 
@@ -30,16 +32,17 @@ class pdgan(BaseModel):
 
         self.batchSize = opt.batchSize
 
-        self.loss_names = ['app_g', 'ad_g', 'img_d', 'pd', 'tv']
+        self.loss_names = ['app_g', 'ad_g', 'img_d', 'pd', 'tv', 'diver']
         self.visual_names = ['img_m', 'img_c', 'img_truth', 'img_out_A', 'img_out_B', 'img_g_A', 'img_g_B']
         self.model_names = ['G_pd', 'D_pd']
         self.features = []
 
         # define the inpainting model
         self.net_G_pd = network.define_pd_g(ngf=32, z_nc=128, img_f=128, L=0, layers=5, output_scale=opt.output_scale,
-                                            norm='group', activation='LeakyReLU', init_type='orthogonal', gpu_ids=opt.gpu_ids)
+                                            norm='instance', activation='LeakyReLU', init_type='orthogonal', gpu_ids=opt.gpu_ids, use_gated=opt.use_gated)
         # define the discriminator model
-        self.net_D_pd = network.define_pd_d(ndf=32, img_f=128, layers=5, model_type='ResDis', init_type='orthogonal', gpu_ids=opt.gpu_ids)
+        self.net_D_pd = network.define_pd_d(ndf=32, img_f=128, layers=4, model_type='Mult', init_type='orthogonal', gpu_ids=opt.gpu_ids, use_gated=False)
+
 
         if self.pd_isTrain:
             # define the loss functions
@@ -49,7 +52,7 @@ class pdgan(BaseModel):
             self.Ms_L1loss = MS_L1loss.MS_SSIM_L1_LOSS()
             self.PD_loss = PD_Loss()
             self.TV_loss = TV_Loss()
-            self.Perceptual_loss = PerceptualLoss(weights=[1.0, 2.0, 4.0, 8.0, 16.0])
+            self.Perceptual_loss = PerceptualLoss()
             self.Diversity_loss = Diversityloss()
             # define the optimizer
             self.optimizer_G = torch.optim.Adam(itertools.chain(filter(lambda p: p.requires_grad, self.net_G_pd.parameters())), lr=opt.lr, betas=(0.0, 0.999))
@@ -106,17 +109,21 @@ class pdgan(BaseModel):
     def forward(self, img_p):
         # self.mask = mask
         # self.img_truth = img_truth
-        pic = toPIL(self.img_truth.chunk(chunks=4)[-1].view(3, 256, 256))
-        pic.save('truth1.jpg')
+        # pic = toPIL(self.img_truth.chunk(chunks=4)[-1].view(3, 256, 256))
+        # pic.save('truth1.jpg')
         # pic = toPIL(self.mask.chunk(chunks=4)[-1].view(3, 256, 256))
         # pic.save('mask1.jpg')
         z_A = torch.Tensor(np.random.normal(0, 1, (self.batchSize, 128, 8, 8)))
         z_B = torch.Tensor(np.random.normal(0, 1, (self.batchSize, 128, 8, 8)))
         # print(z_A is z_B)
-        results, attn, features = self.net_G_pd(torch.cat([z_A, z_B], dim=0),
+        if self.opt.use_gated:
+            results, attn = self.net_G_pd(torch.cat([z_A, z_B], dim=0),
+                                                    torch.cat([self.mask, self.mask], dim=0),
+                                                    torch.cat([img_p, img_p], dim=0))
+        else:
+            results, attn = self.net_G_pd(torch.cat([z_A, z_B], dim=0),
                                                 torch.cat([self.mask, self.mask], dim=0),
                                                 torch.cat([img_p, img_p], dim=0))
-        self.features = features
         self.img_g_A = []
         self.img_g_B = []
         for result in results:
@@ -125,16 +132,16 @@ class pdgan(BaseModel):
             self.img_g_B.append(img_g_B)
         self.img_out_A = (1-self.mask) * self.img_g_A[-1].detach() + self.mask * self.img_truth
         self.img_out_B = (1-self.mask) * self.img_g_B[-1].detach() + self.mask * self.img_truth
-        print(self.img_out_A is self.img_out_B)
-        pic = toPIL(self.img_out_A.chunk(chunks=4)[-1].view(3, 256, 256))
-        pic.save('out.jpg')
+        # print(self.img_out_A is self.img_out_B)
+        # pic = toPIL(self.img_out_A.chunk(chunks=4)[-1].view(3, 256, 256))
+        # pic.save('out.jpg')
 
-        pic = toPIL(self.mask.chunk(chunks=4)[-1].view(3, 256, 256))
-        pic.save('mask.jpg')
-        print(self.mask.chunk(chunks=4)[-1].view(3, 256, 256))
+        # pic = toPIL(self.mask.chunk(chunks=4)[-1].view(3, 256, 256))
+        # pic.save('mask.jpg')
+        # print(self.mask.chunk(chunks=4)[-1].view(3, 256, 256))
 
-        pic = toPIL(self.img_truth.chunk(chunks=4)[-1].view(3, 256, 256))
-        pic.save('truth.jpg')
+        # pic = toPIL(self.img_truth.chunk(chunks=4)[-1].view(3, 256, 256))
+        # pic.save('truth.jpg')
 
         # pic = toPIL(self.img_g[-1].chunk(chunks=4)[-1].view(3, 256, 256))
         # pic.save('img_g.jpg')
@@ -143,11 +150,17 @@ class pdgan(BaseModel):
         """Calculate GAN loss for the discriminator"""
         # Real
         D_real = netD(real)
-        D_real_loss = self.GANloss(D_real, True, True)
+        D_real_loss1 = self.GANloss(D_real[0], True, True)
+        D_real_loss2 = self.GANloss(D_real[1], True, True)
+        D_real_loss3 = self.GANloss(D_real[2], True, True)
+        D_real_loss = (D_real_loss1 + D_real_loss2 + D_real_loss3) / 3.0
         # fake
         # print("fake" + str(fake.shape))
         D_fake = netD(fake.detach())
-        D_fake_loss = self.GANloss(D_fake, False, True)
+        D_fake_loss1 = self.GANloss(D_fake[0], False, True)
+        D_fake_loss2 = self.GANloss(D_fake[1], False, True)
+        D_fake_loss3 = self.GANloss(D_fake[2], False, True)
+        D_fake_loss = (D_fake_loss1 + D_fake_loss2 + D_fake_loss3) / 3.0
         # loss for discriminator
         if self.opt.gan_mode == 'wgandiv':
             D_loss = D_real_loss - D_fake_loss
@@ -180,8 +193,14 @@ class pdgan(BaseModel):
         # g loss fake
         D_fake_A = self.net_D_pd(self.img_g_A[-1])
         D_fake_B = self.net_D_pd(self.img_g_B[-1])
-        self.loss_ad_g_A = self.GANloss(D_fake_A, True, False) * self.opt.lambda_g
-        self.loss_ad_g_B = self.GANloss(D_fake_B, True, False) * self.opt.lambda_g
+        self.loss_ad_g_A1 = self.GANloss(D_fake_A[0], True, False) * self.opt.lambda_g
+        self.loss_ad_g_A2 = self.GANloss(D_fake_A[1], True, False) * self.opt.lambda_g
+        self.loss_ad_g_A3 = self.GANloss(D_fake_A[2], True, False) * self.opt.lambda_g
+        self.loss_ad_g_A = (self.loss_ad_g_A1 + self.loss_ad_g_A2 + self.loss_ad_g_A3) / 3.0
+        self.loss_ad_g_B1 = self.GANloss(D_fake_B[0], True, False) * self.opt.lambda_g
+        self.loss_ad_g_B2 = self.GANloss(D_fake_B[1], True, False) * self.opt.lambda_g
+        self.loss_ad_g_B3 = self.GANloss(D_fake_B[2], True, False) * self.opt.lambda_g
+        self.loss_ad_g_B = (self.loss_ad_g_B1 + self.loss_ad_g_B2 + self.loss_ad_g_B3) / 3.0
         self.loss_ad_g = self.loss_ad_g_A + self.loss_ad_g_B
 
         # calculate l1 loss ofr multi-scale outputs
@@ -203,10 +222,16 @@ class pdgan(BaseModel):
         #     feature_A, feature_B = torch.split(feature, self.batchSize, dim=0)
         #     loss_pd += self.PD_loss(feature_A, feature_B)
         # self.loss_pd = 1 / (loss_pd + 1e-5)
-        self.loss_pd = 1 / self.Perceptual_loss(self.img_g_A[-1], self.img_g_B[-1])
+        self.loss_pd = reduce(
+                        lambda x, y: x + y,
+                            [
+                                self.Perceptual_loss(self.img_g_A[-1], self.img_truth),
+                                self.Perceptual_loss(self.img_g_B[-1], self.img_truth),
+                            ],
+                        ) * self.opt.lambda_p
 
         # diversity loss
-        # self.loss_diver = 1 / self.Diversity_loss(self.img_g_A[-1], self.img_g_B[-1])
+        self.loss_diver = 1 / (self.Diversity_loss(self.img_g_A[-1], self.img_g_B[-1]) + 1e-5)
 
         # TV loss
         loss_tv_A = 0

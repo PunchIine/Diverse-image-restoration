@@ -5,15 +5,66 @@ from math import exp
 import sys
 import torch
 import torch.nn.functional as F
-from dataloader.image_folder import make_dataset
+# from dataloader.image_folder import make_dataset
 import os
 import glob
 import shutil
+import os.path
 
+IMG_EXTENSIONS = [
+    '.jpg', '.JPG', '.jpeg', '.JPEG',
+    '.png', '.PNG', '.ppm', '.PPM', '.bmp', '.BMP',
+]
+def is_image_file(filename):
+    return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
+
+
+def make_dataset(path_files):
+    if path_files.find('.txt') != -1:
+        paths, size = make_dataset_txt(path_files)
+    else:
+        paths, size = make_dataset_dir(path_files)
+
+    return paths, size
+
+
+def make_dataset_txt(files):
+    """
+    :param path_files: the path of txt file that store the image paths
+    :return: image paths and sizes
+    """
+    img_paths = []
+
+    with open(files) as f:
+        paths = f.readlines()
+
+    for path in paths:
+        path = path.strip()
+        img_paths.append(path)
+
+    return img_paths, len(img_paths)
+
+
+def make_dataset_dir(dir):
+    """
+    :param dir: directory paths that store the image
+    :return: image paths and sizes
+    """
+    img_paths = []
+
+    assert os.path.isdir(dir), '%s is not a valid directory' % dir
+
+    for root, _, fnames in os.walk(dir):
+        for fname in sorted(fnames):
+            if is_image_file(fname):
+                path = os.path.join(root, fname)
+                img_paths.append(path)
+
+    return img_paths, len(img_paths)
 parser = argparse.ArgumentParser(description='Evaluation ont the dataset')
-parser.add_argument('--gt_path', type = str, default='/home/lazy/my-Pluralistic-Inpainting/images/truth',
+parser.add_argument('--gt_path', type = str, default='/content/images/truth',
                     help = 'path to original particular solutions')
-parser.add_argument('--save_path', type = str, default='/home/lazy/my-Pluralistic-Inpainting/images/out',
+parser.add_argument('--save_path', type = str, default='/content/images/out',
                     help='path to save the test dataset')
 parser.add_argument('--num_test', type=int, default=500,
                     help='how many images to load for each test')
@@ -103,7 +154,7 @@ if __name__ == "__main__":
         except:
             print (path)
 
-    assert gt_size == pre_size
+   # assert gt_size == pre_size
     #
     iters = int(2000/args.num_test)
 
@@ -129,7 +180,7 @@ if __name__ == "__main__":
             TV_sample = 1000
             SSIM_sample = 0
             name = gt_paths[index].split('/')[-1].split(".")[0]+"*"
-#            pre_paths = sorted(glob.glob(os.path.join(args.save_path, name)))
+            # pre_paths = sorted(glob.glob(os.path.join(args.save_path, name)))
             num_image_files = len(pre_paths)
 
             for k in range(num_image_files-1):
@@ -144,7 +195,7 @@ if __name__ == "__main__":
                         best_index = index2
                 except:
                     print(pre_paths[index2])
-            shutil.copy(pre_paths[best_index], '/home/lazy/Pluralistic-Inpainting/images/copy')
+            shutil.copy(pre_paths[best_index], '/content/images/copy')
             print(pre_paths[best_index])
             print(l1_sample, PSNR_sample, TV_sample, SSIM_sample)
 
@@ -156,7 +207,7 @@ if __name__ == "__main__":
         SSIM[i] = torch.mean(SSIM_iter)
 
         print(i)
-        print('{:10.4f},{:10.4f},{:10.4f}'.format(l1_loss[i], PSNR[i], TV[i]))
+        print('{:10.4f},{:10.4f},{:10.4f},{:10.4f}'.format(l1_loss[i], PSNR[i], TV[i], SSIM[i]))
 
-    print('{:>10},{:>10},{:>10}'.format('L1_LOSS', 'PSNR', 'TV'))
-    print('{:10.4f},{:10.4f},{:10.4f}'.format(l1_loss.mean(), PSNR.mean(), TV.mean(), SSIM.mean()))
+    print('{:>10},{:>10},{:>10},{:>10}'.format('L1_LOSS', 'PSNR', 'TV', 'SSIM'))
+    print('{:10.4f},{:10.4f},{:10.4f},{:10.4f}'.format(l1_loss.mean(), PSNR.mean(), TV.mean(), SSIM.mean()))

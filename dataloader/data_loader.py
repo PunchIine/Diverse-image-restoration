@@ -1,3 +1,4 @@
+from typing import Text
 from PIL import Image, ImageFile
 import torchvision.transforms as transforms
 import torch.utils.data as data
@@ -76,7 +77,7 @@ class CreateDataset(data.Dataset):
 
 def dataloader(opt):
     datasets = CreateDataset(opt)
-    dataset = data.DataLoader(datasets, batch_size=opt.batchSize, shuffle=not opt.no_shuffle, num_workers=int(opt.nThreads))
+    dataset = data.DataLoader(datasets, batch_size=opt.batchSize, shuffle=not opt.no_shuffle, num_workers=int(opt.nThreads), drop_last=True)
 
     return dataset
 

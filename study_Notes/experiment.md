@@ -50,8 +50,6 @@
 
 ![image](https://user-images.githubusercontent.com/93063038/187074940-061a54d3-133e-46fa-9394-dceab5f9e2f4.png)
 
-
-
 |                     | L1_loss↓   | PSNR↑       | TV↓        | FID↓        |
 | ------------------- | ---------- | ----------- | ---------- | ----------- |
 | Base                | 8.3597     | 23.3455     | 8.7266     | 13.6334     |
@@ -59,7 +57,7 @@
 | SimAM Attention     | **7.9695** | **23.5854** | 8.4483     | **12.4844** |
 | Group Normalization | 8.1413     | 23.4755     | 8.4518     | 13.6261     |
 
-PD-GAN
+SPDNorm
 
 使用PICNet的预训练模型，生成质量较低的修复图像传入SPDNorm，由PD-GAN来生成具有更丰富的多样性、更高质量的图像。简单复现了PDGAN的SPDNorm，使用了PICNet中的block，结合self-Attention GAN，加入了TV loss，使用了LSGAN的adversarial loss，自己设计（瞎搞了）了一个loss
 
@@ -67,12 +65,20 @@ PD-GAN
 
 出乎意料的是其余的参数都有所优化（？）
 
-![image](https://user-images.githubusercontent.com/93063038/186628066-6173b172-7a01-4d4e-bec3-994a23f01062.png)
+<img title="" src="https://user-images.githubusercontent.com/93063038/186628066-6173b172-7a01-4d4e-bec3-994a23f01062.png" alt="image" data-align="center">
 
-![](file:///home/lazy/.config/marktext/images/2022-08-26-15-51-17-image.png?msec=1661677023043)
+<img src="https://user-images.githubusercontent.com/93063038/186628757-a386d65f-5256-47ac-979e-ab2b35892e33.png" title="" alt="image" data-align="center">
 
-![image](https://user-images.githubusercontent.com/93063038/186628757-a386d65f-5256-47ac-979e-ab2b35892e33.png)
+<img src="https://user-images.githubusercontent.com/93063038/186679315-e6065ad5-4dbe-4530-b3d3-ed790037ef8d.png" title="" alt="image" data-align="center">
 
-![image](https://user-images.githubusercontent.com/93063038/186679315-e6065ad5-4dbe-4530-b3d3-ed790037ef8d.png)
+<img src="https://user-images.githubusercontent.com/93063038/186685136-ba1401c8-9303-49f5-9df6-a540c88aa482.png" title="" alt="image" data-align="center">
 
-![image](https://user-images.githubusercontent.com/93063038/186685136-ba1401c8-9303-49f5-9df6-a540c88aa482.png)
+5 结合Attentive Normalization设计一个Attention Layer
+
+6 gated Conv 结合coord Conv
+
+7 minibatch discriminator || multi-stage discriminator || PGGAN
+
+8 hinge loss 变种
+
+9 exponential moving average

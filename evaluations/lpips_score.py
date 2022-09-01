@@ -6,12 +6,11 @@ import torch
 # from dataloader.image_folder import make_dataset
 
 parser = argparse.ArgumentParser(description='Evaluation ont the dataset')
-parser.add_argument('--out0_path', type = str, default='/home/lazy/my-Pluralistic-Inpainting/images/out0',
+parser.add_argument('--out0_path', type = str, default='/content/images/out0',
                     help = 'path to original particular solutions')
-parser.add_argument('--out1_path', type = str, default='/home/lazy/my-Pluralistic-Inpainting/images/out1',
+parser.add_argument('--out1_path', type = str, default='/content/images/out1',
                     help='path to save the test dataset')
-parser.add_ar
-gument('--num_test', type=int, default=2000,
+parser.add_argument('--num_test', type=int, default=2000,
                     help='how many images to load for each test')
 args = parser.parse_args()
 import os

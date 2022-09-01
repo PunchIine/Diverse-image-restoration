@@ -25,9 +25,9 @@ def define_g(output_nc=3, ngf=64, z_nc=512, img_f=512, L=1, layers=5, norm='inst
 
 
 def define_pd_g(output_nc=3, ngf=64, z_nc=512, img_f=512, L=1, layers=5, norm='instance', activation='ReLU', output_scale=1,
-             use_spect=True, use_coord=False, use_attn=True, init_type='orthogonal', gpu_ids=[]):
+             use_spect=True, use_coord=False, use_attn=True, use_gated=False, init_type='orthogonal', gpu_ids=[]):
 
-    net = PD_Generator(output_nc, ngf, z_nc, img_f, L, layers, norm, activation, output_scale, use_spect, use_coord, use_attn)
+    net = PD_Generator(output_nc, ngf, z_nc, img_f, L, layers, norm, activation, output_scale, use_spect, use_coord, use_attn=use_attn, use_gated=use_gated)
 
     return init_net(net, init_type, activation, gpu_ids)
 
@@ -44,12 +44,14 @@ def define_d(input_nc=3, ndf=64, img_f=512, layers=6, norm='none', activation='L
 
 
 def define_pd_d(input_nc=3, ndf=64, img_f=512, layers=6, norm='none', activation='LeakyReLU', use_spect=True, use_coord=False,
-             use_attn=True,  model_type='ResDis', init_type='orthogonal', gpu_ids=[]):
+             use_attn=True, use_gated=False,  model_type='ResDis', init_type='orthogonal', gpu_ids=[]):
 
     if model_type == 'ResDis':
-        net = PD_Discriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord, use_attn)
+        net = PD_Discriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord, use_attn, use_gated=use_gated)
     elif model_type == 'PatchDis':
-        net = PatchDiscriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord, use_attn)
+        net = PatchDiscriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord)
+    else:
+        net = MultiPatchCoordDiscriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord)
 
     return init_net(net, init_type, activation, gpu_ids)
 
@@ -317,7 +319,7 @@ class PatchDiscriminator(nn.Module):
     :param use_attn: use short+long attention or not
     """
     def __init__(self, input_nc=3, ndf=64, img_f=512, layers=3, norm='batch', activation='LeakyReLU', use_spect=True,
-                 use_coord=False, use_attn=False):
+                 use_coord=False):
         super(PatchDiscriminator, self).__init__()
 
         norm_layer = get_norm_layer(norm_type=norm)
@@ -350,7 +352,9 @@ class PatchDiscriminator(nn.Module):
         self.model = nn.Sequential(*sequence)
 
     def forward(self, x):
+        # print(x.shape)
         out = self.model(x)
+        # print(out.shape)
         return out
 
 
@@ -368,7 +372,7 @@ class PD_Generator(nn.Module):
     :param output_scale: Different output scales
     """
     def __init__(self, output_nc=3, ngf=64, z_nc=128, img_f=1024, L=1, layers=6, norm='batch', activation='ReLU',
-                 output_scale=1, k=4, n=2, use_spect=True, use_coord=False, use_attn=True):
+                 output_scale=1, k=4, n=2, use_spect=True, use_coord=False, use_attn=True, use_gated=False):
         super(PD_Generator, self).__init__()
 
         self.layers = layers
@@ -383,11 +387,11 @@ class PD_Generator(nn.Module):
         nonlinearity = get_nonlinearity_layer(activation_type=activation)
         # latent z to feature
         mult = min(2 ** (layers-1), img_f // ngf)
-        self.generator = ResBlock(z_nc, ngf * mult, ngf * mult, None, nonlinearity, 'none', use_spect, use_coord)
+        self.generator = ResBlock(z_nc, ngf * mult, ngf * mult, None, nonlinearity, 'none', use_spect, use_coord, use_gated=use_gated)
 
         # transform
         for i in range(self.L):
-            block = ResBlock(ngf * mult, ngf * mult, ngf * mult, None, nonlinearity, 'none', use_spect, use_coord)
+            block = ResBlock(ngf * mult, ngf * mult, ngf * mult, None, nonlinearity, 'none', use_spect, use_coord, use_gated=use_gated)
             setattr(self, 'generator' + str(i), block)
 
         # decoder part
@@ -397,17 +401,21 @@ class PD_Generator(nn.Module):
             mult_prev = mult  # 4
             mult = min(2 ** (layers - i - 1), img_f // ngf)
             if i > layers - output_scale:
-                # upconv = ResBlock(ngf * mult_prev + output_nc, ngf * mult, ngf * mult, norm_layer, nonlinearity, 'up', True)
-                upconv = ResBlockDecoder(ngf * mult_prev + output_nc, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord)
+                upconv = ResBlock(ngf * mult_prev + output_nc, ngf * mult, ngf * mult, norm_layer, nonlinearity, 'up', True, use_gated=use_gated)
+                # upconv = ResBlockDecoder(ngf * mult_prev + output_nc, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord)
             else:
-                # upconv = ResBlock(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, 'up', True)
-                upconv = ResBlockDecoder(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord)
-            block_s = ResBlockSPDNorm(ngf * mult, 3, int(math.log2(256 / 2 ** (i + 4))), self.n, self.k)
+                upconv = ResBlock(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, 'up', True, use_gated=use_gated)
+                # upconv = ResBlockDecoder(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord)
+            # block_s = ResBlockSPDNorm(ngf * mult, 3, int(math.log2(256 / 2 ** (i + 4))), self.n, self.k)
+            if i <= 2:
+                block_s = SPDNormResnetBlock(ngf * mult, ngf * mult, 2, 3)
+            else:
+                block_s = SPDNormResnetBlock(ngf * mult, ngf * mult, 4, 3)
             setattr(self, 'decoder' + str(i), upconv)
             setattr(self, 'SPDNorm' + str(i), block_s)
             # output part
             if i > layers - output_scale - 1:
-                outconv = Output(ngf * mult, output_nc, 3, None, nonlinearity, use_spect, use_coord)
+                outconv = Output(ngf * mult, output_nc, 3, None, nonlinearity, use_spect, use_coord, use_gated=use_gated)
                 setattr(self, 'out' + str(i), outconv)
             # short+long term attention part
             if i == 1 and use_attn:
@@ -435,15 +443,13 @@ class PD_Generator(nn.Module):
         out = f
         # [8, 128, 8, 8]
         results = []
-        features = []
         attn = 0
         for i in range(self.layers):
             model = getattr(self, 'decoder' + str(i))
             out_d = model(out)
             # print("decoder" + str(i) + str(out.shape))
             model = getattr(self, 'SPDNorm' + str(i))
-            out, mask_s = model(out_d, img_p, mask)
-            features.append(out_d.clone() * mask_s.clone())
+            out = model(out_d, img_p, mask)
             # print("SPDNorm" + str(i) + str(out.shape))
             if i == 1 and self.use_attn:
                 # auto attention
@@ -460,7 +466,7 @@ class PD_Generator(nn.Module):
                 results.append(output)
                 out = torch.cat([out, output], dim=1)
         # print("result", results)
-        return results, attn, features
+        return results, attn
 
 
 class PD_Discriminator(nn.Module):
@@ -474,7 +480,7 @@ class PD_Discriminator(nn.Module):
     :param activation: activation function 'ReLU, SELU, LeakyReLU, PReLU'
     """
     def __init__(self, input_nc=3, ndf=64, img_f=1024, layers=6, norm='none', activation='LeakyReLU', use_spect=True,
-                 use_coord=False, use_attn=True):
+                 use_coord=False, use_attn=True, use_gated=False):
         super(PD_Discriminator, self).__init__()
 
         self.layers = layers
@@ -485,7 +491,7 @@ class PD_Discriminator(nn.Module):
         self.nonlinearity = nonlinearity
 
         # encoder part
-        self.block0 = ResBlockEncoderOptimized(input_nc, ndf,norm_layer, nonlinearity, use_spect, use_coord)
+        self.block0 = ResBlockEncoderOptimized(input_nc, ndf, norm_layer, nonlinearity, use_spect, use_coord, use_gated=use_gated)
 
         mult = 1
         for i in range(layers - 1):
@@ -498,10 +504,10 @@ class PD_Discriminator(nn.Module):
                 # attn = Auto_Attn(ndf * mult_prev, norm_layer)
                 attn = FullAttention(ndf * mult_prev, ndf * mult_prev)
                 setattr(self, 'attn' + str(i), attn)
-            block = ResBlock(ndf * mult_prev, ndf * mult, ndf * mult_prev, norm_layer, nonlinearity, 'down', use_spect, use_coord)
+            block = ResBlock(ndf * mult_prev, ndf * mult, ndf * mult_prev, norm_layer, nonlinearity, 'down', use_spect, use_coord, use_gated=use_gated)
             setattr(self, 'encoder' + str(i), block)
 
-        self.block1 = ResBlock(ndf * mult, ndf * mult, ndf * mult, norm_layer, nonlinearity, 'none', use_spect, use_coord)
+        self.block1 = ResBlock(ndf * mult, ndf * mult, ndf * mult, norm_layer, nonlinearity, 'none', use_spect, use_coord, use_gated=use_gated)
         self.conv = SpectralNorm(nn.Conv2d(ndf * mult, 1, 3))
 
     def forward(self, x):
@@ -521,3 +527,33 @@ class PD_Discriminator(nn.Module):
         out = self.block1(out)
         out = self.conv(self.nonlinearity(out))
         return out
+
+
+class MultiPatchCoordDiscriminator(nn.Module):
+    def __init__(self, input_nc=3, ndf=64, img_f=1024, layers=6, norm='none', activation='LeakyReLU', use_spect=True,
+                 use_coord=False):
+        super(MultiPatchCoordDiscriminator, self).__init__()
+
+        self.module_d1 = PatchDiscriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord)
+        self.module_d2 = PatchDiscriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord)
+        self.module_d3 = PatchDiscriminator(input_nc, ndf, img_f, layers, norm, activation, use_spect, use_coord)
+
+    def downsample(self, input):
+        return F.avg_pool2d(
+            input, kernel_size=3, stride=2, padding=[1, 1], count_include_pad=False
+        )
+
+    # Returns list of lists of discriminator outputs.
+    # The final result is of size cfg.num_D x cfg.n_layers_D
+    def forward(self, input):
+        result = []
+        out1 = self.module_d1(input)
+        input = self.downsample(input)
+        out2 = self.module_d2(input)
+        input = self.downsample(input)
+        out3 = self.module_d3(input)
+        result.append(out1)
+        result.append(out2)
+        result.append(out3)
+
+        return result
