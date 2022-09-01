@@ -23,11 +23,6 @@ if __name__=='__main__':
     opt.batchSize = 1
     opt.img_file = '/home/lazy/img_align_celeba'
     opt.model = 'pdgan'
-    opt.batchSize = 2
-    opt.model = "pdgan"
-    opt.use_gated = False
-    opt.use_coord = False
-    #    opt.continue_train = True
     model_pd = create_model(opt)
     model_pd.eval()
     # create a visualizer

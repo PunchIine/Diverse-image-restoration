@@ -40,7 +40,6 @@ class BaseOptions():
         parser.add_argument('--display_port', type=int, default=8097, help='visidom port of the web display')
         parser.add_argument('--display_single_pane_ncols', type=int, default=0, help='if positive, display all images in a single visidom web panel')
 
-        # gated Conv
         parser.add_argument('--use_gated', action='store_true')
 
         return parser
