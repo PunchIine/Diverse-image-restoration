@@ -19,18 +19,15 @@ if __name__=='__main__':
     model_pic = create_model(opt_feed)
     model_pic.eval()
     opt = PD_train_options.PD_trainOptions().parse()
-<<<<<<< HEAD:train_PD.py
     opt.continue_train = False
     opt.batchSize = 1
     opt.img_file = '/home/lazy/img_align_celeba'
     opt.model = 'pdgan'
-=======
     opt.batchSize = 2
     opt.model = "pdgan"
     opt.use_gated = False
     opt.use_coord = False
     #    opt.continue_train = True
->>>>>>> fe4bce53c7eea27dd21702fe1a642d3218063c8a:PD_train.py
     model_pd = create_model(opt)
     model_pd.eval()
     # create a visualizer

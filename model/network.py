@@ -406,15 +406,11 @@ class PD_Generator(nn.Module):
             else:
                 upconv = ResBlock(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, 'up', True, use_gated=use_gated)
                 # upconv = ResBlockDecoder(ngf * mult_prev, ngf * mult, ngf * mult, norm_layer, nonlinearity, use_spect, use_coord)
-<<<<<<< HEAD
             # block_s = ResBlockSPDNorm(ngf * mult, 3, int(math.log2(256 / 2 ** (i + 4))), self.n, self.k)
             if i <= 2:
                 block_s = SPDNormResnetBlock(ngf * mult, ngf * mult, 2, 3)
             else:
                 block_s = SPDNormResnetBlock(ngf * mult, ngf * mult, 4, 3)
-=======
-            block_s = ResBlockSPDNorm(ngf * mult, 3, int(math.log2(256 / 2 ** (i + 4))), self.n, self.k)
->>>>>>> fe4bce53c7eea27dd21702fe1a642d3218063c8a
             setattr(self, 'decoder' + str(i), upconv)
             setattr(self, 'SPDNorm' + str(i), block_s)
             # output part
