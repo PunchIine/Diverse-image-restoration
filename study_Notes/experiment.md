@@ -73,6 +73,11 @@ SPDNorm
 
 <img src="https://user-images.githubusercontent.com/93063038/186685136-ba1401c8-9303-49f5-9df6-a540c88aa482.png" title="" alt="image" data-align="center">
 
+<<<<<<< HEAD
+=======
+![image](https://user-images.githubusercontent.com/93063038/186685136-ba1401c8-9303-49f5-9df6-a540c88aa482.png)
+
+>>>>>>> fe4bce53c7eea27dd21702fe1a642d3218063c8a
 5 结合Attentive Normalization设计一个Attention Layer
 
 6 gated Conv 结合coord Conv

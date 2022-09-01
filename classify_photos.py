@@ -20,4 +20,4 @@ for i in range(len(file_list)):
     if fid[-3:] == 'png':
         fid = fid[:-4]
     new_file_path = os.path.join(path1, '%s' %(fid), file_list[i])
-    shutil.move(old_file_path, new_file_path)
+    shutil.move(old_file_path,new_file_path)
